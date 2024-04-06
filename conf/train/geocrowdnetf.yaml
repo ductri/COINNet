@@ -1,0 +1,5 @@
+lr: 1e-2
+batch_size: 512
+num_epochs: 200
+lam: 0.1
+

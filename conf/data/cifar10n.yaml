@@ -1,0 +1,4 @@
+N: 50000
+M: 3
+K: 10
+dataset: cifar10n

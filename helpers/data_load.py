@@ -13,8 +13,8 @@ from numpy.random import default_rng
 from scipy import stats
 from sklearn.model_selection import train_test_split
 
-class Cifar10Dataset(Data.Dataset):
-    def __init__(self, train=True, transform=None, target_transform=None, split_per=0.9,args=None,logger=None):
+class cifar10_dataset(Data.Dataset):
+    def __init__(self, train=True, transform=None, target_transform=None, split_per=0.9 ,args=None,logger=None):
         self.transform = transform
         self.target_transform = target_transform
         self.train = train
@@ -25,9 +25,8 @@ class Cifar10Dataset(Data.Dataset):
 
 
         print(original_images.shape)
-        print('Splitting train and validation data')
-        seed = 26
-        self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, seed, 10)
+        logger.info('Splitting train and validation data')
+        self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, args.seed, args.K)
 
 
 
@@ -37,13 +36,13 @@ class Cifar10Dataset(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='synthetic':
-                print('Generating synthetic classifier annotations')
+                logger.info('Generating synthetic classifier annotations')
                 self.A_true = generate_confusion_matrices(args,feature_size=(3,32,32))
-                print('Getting noisy labels from annotators')
+                logger.info('Getting noisy labels from annotators')
                 self.annotations_one_hot, self.annotations, self.flag_instance_indep_noise, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask, self.samples_noisy_label_count,self.samples_total_label_count = generate_annotator_labels(self.A_true,self.train_labels,self.train_data,(3,32,32),transform, args)
             elif args.annotator_type=='real':
-                print('Loading real annotations')
+                logger.info('Loading real annotations')
                 annotations_all = np.load('data/cifar10n/annotations_cifar10n.npy')
                 noise_label = torch.load('data/cifar10n/CIFAR-10_human.pt')
                 random_label1 = noise_label['random_label1']
@@ -62,7 +61,7 @@ class Cifar10Dataset(Data.Dataset):
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask, self.samples_noisy_label_count,self.samples_total_label_count = get_real_annotator_labels(annotations,args.K)
                 self.A_true = estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -118,13 +117,13 @@ class synthetic_data(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='synthetic':
-                print('Generating synthetic classifier annotations')
+                logger.info('Generating synthetic classifier annotations')
                 self.A_true = generate_confusion_matrices(args,feature_size=(3,32,32))
-                print('Getting noisy labels from annotators')
+                logger.info('Getting noisy labels from annotators')
                 self.annotations_one_hot, self.annotations, self.flag_instance_indep_noise, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask = generate_annotator_labels(self.A_true,self.train_labels,self.train_data,(3,32,32),transform, args)
             elif args.annotator_type=='real':
-                print('Loading real annotations')
+                logger.info('Loading real annotations')
                 annotations_all = np.load('data/cifar10n/annotations_cifar10n.npy')
                 noise_label = torch.load('data/cifar10n/CIFAR-10_human.pt')
                 random_label1 = noise_label['random_label1']
@@ -143,7 +142,7 @@ class synthetic_data(Data.Dataset):
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask = get_real_annotator_labels(annotations,args.K)
                 self.A_true = estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -224,7 +223,7 @@ class cifar100_dataset(Data.Dataset):
 
 
         print(original_images.shape)
-        print('Splitting train and validation data')
+        logger.info('Splitting train and validation data')
         self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, args.seed, args.K)
 
 
@@ -235,13 +234,13 @@ class cifar100_dataset(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='synthetic':
-                print('Generating synthetic classifier annotations')
+                logger.info('Generating synthetic classifier annotations')
                 self.A_true = generate_confusion_matrices(args,feature_size=(3,32,32))
-                print('Getting noisy labels from annotators')
+                logger.info('Getting noisy labels from annotators')
                 self.annotations_one_hot, self.annotations, self.flag_instance_indep_noise, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask, self.samples_noisy_label_count,self.samples_total_label_count = generate_annotator_labels(self.A_true,self.train_labels,self.train_data,(3,32,32),transform, args)
             elif args.annotator_type=='real':
-                print('Loading real annotations')
+                logger.info('Loading real annotations')
                 annotations_all = np.load('data/cifar100n/annotations_cifar100n.npy')
                 noise_label = torch.load('data/cifar100n/CIFAR-100_human.pt')
                 random_label1 = noise_label['random_label1']
@@ -260,7 +259,7 @@ class cifar100_dataset(Data.Dataset):
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask, self.samples_noisy_label_count,self.samples_total_label_count = get_real_annotator_labels(annotations,args.K)
                 self.A_true = estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -350,7 +349,7 @@ class mnist_dataset(Data.Dataset):
         length_original_data = len(original_images)
         print('shape of original images')
         print(original_images.shape)
-        print('Splitting train and validation data')
+        logger.info('Splitting train and validation data')
         self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, random_seed, num_class)
 
 
@@ -372,7 +371,7 @@ class mnist_dataset(Data.Dataset):
         train_val_data_selected, _, train_val_labels_selected, _ = train_test_split(train_val_data, train_val_labels, train_size=(length_data)/(length_original_data-10000))
 
 
-        print('Splitting train and validation data')
+        logger.info('Splitting train and validation data')
         self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(train_val_data_selected,train_val_labels_selected, split_per, random_seed, num_class)
         print('shape of images for training')
         print(self.train_data.shape)
@@ -381,14 +380,14 @@ class mnist_dataset(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='synthetic':
-                print('Generating synthetic classifier annotations')
+                logger.info('Generating synthetic classifier annotations')
                 self.A_true = generate_confusion_matrices(args.M,args.K,args.gamma,args.conf_mat_type)
-                print('Getting noisy labels from annotators')
+                logger.info('Getting noisy labels from annotators')
                 self.annotations_one_hot, self.annotations, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask = generate_annotator_labels(self.A_true,args.annotator_label_pattern,args.p,args.l,self.train_labels)
 
             elif args.annotator_type=='machine-classifier':
-                print('Getting machine classifier annotations')
+                logger.info('Getting machine classifier annotations')
                 self.annotations_one_hot, self.annotations, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask\
                         = generate_machine_classifier_annotations(data_train_annotators,\
@@ -396,7 +395,7 @@ class mnist_dataset(Data.Dataset):
                 #annotations_1 = np.argmax(annotations_one_hot,axis=2)
                 self.A_true=estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -475,7 +474,7 @@ class fmnist_dataset1(Data.Dataset):
         length_original_data = len(original_images)
         print('shape of original images')
         print(original_images.shape)
-        print('Splitting train and validation data')
+        logger.info('Splitting train and validation data')
         self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, random_seed, num_class)
 
 
@@ -498,7 +497,7 @@ class fmnist_dataset1(Data.Dataset):
                 train_val_data_selected, _, train_val_labels_selected, _ = train_test_split(train_val_data, train_val_labels, train_size=(length_data)/(length_original_data-10000))
 
 
-                print('Splitting train and validation data')
+                logger.info('Splitting train and validation data')
                 self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(train_val_data_selected,train_val_labels_selected, split_per, random_seed, num_class)
                 print('shape of images for training')
                 print(self.train_data.shape)
@@ -507,14 +506,14 @@ class fmnist_dataset1(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='synthetic':
-                print('Generating synthetic classifier annotations')
+                logger.info('Generating synthetic classifier annotations')
                 self.A_true = generate_confusion_matrices(args.M,args.K,args.gamma,args.conf_mat_type)
-                print('Getting noisy labels from annotators')
+                logger.info('Getting noisy labels from annotators')
                 self.annotations_one_hot, self.annotations, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask = generate_annotator_labels(self.A_true,args.annotator_label_pattern,args.p,args.l,self.train_labels)
 
             elif args.annotator_type=='machine-classifier':
-                print('Getting machine classifier annotations')
+                logger.info('Getting machine classifier annotations')
                 self.annotations_one_hot, self.annotations, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask\
                         = generate_machine_classifier_annotations(data_train_annotators,\
@@ -522,7 +521,7 @@ class fmnist_dataset1(Data.Dataset):
                 #annotations_1 = np.argmax(annotations_one_hot,axis=2)
                 self.A_true=estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -598,7 +597,7 @@ class fmnist_dataset(Data.Dataset):
 
 
         print(original_images.shape)
-        print('Splitting train and validation data')
+        logger.info('Splitting train and validation data')
         self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, args.seed, args.K)
 
 
@@ -609,13 +608,13 @@ class fmnist_dataset(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='synthetic':
-                print('Generating synthetic classifier annotations')
+                logger.info('Generating synthetic classifier annotations')
                 self.A_true = generate_confusion_matrices(args,feature_size=(28,28))
-                print('Getting noisy labels from annotators')
+                logger.info('Getting noisy labels from annotators')
                 self.annotations_one_hot, self.annotations, self.flag_instance_indep_noise, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask, self.samples_noisy_label_count,self.samples_total_label_count = generate_annotator_labels(self.A_true,self.train_labels,self.train_data,(28,28),transform, args)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -708,14 +707,14 @@ class labelme_dataset(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='real':
-                print('Loading real annotations')
+                logger.info('Loading real annotations')
                 annotations = np.load('data/LabelMe/answers.npy')
                 annotations = annotations.astype(int)
                 self.annotations_one_hot, self.annotations, self.flag_instance_indep_noise, self.annotations_list_maxmig, \
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask, self.samples_noisy_label_count,self.samples_total_label_count = get_real_annotator_labels(annotations,args.K)
                 self.A_true = estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 
@@ -817,7 +816,7 @@ class music_dataset(Data.Dataset):
 
         if self.train:
             if args.annotator_type=='real':
-                print('Loading real annotations')
+                logger.info('Loading real annotations')
                 self.annotations_data_all = genfromtxt('data/Music/music_genre_mturk.csv',dtype=str,delimiter=',')
                 self.annotator_id_all = self.annotations_data_all[1:,1]
                 self.train_data_id_annotated_all = self.annotations_data_all[1:,0]
@@ -839,7 +838,7 @@ class music_dataset(Data.Dataset):
                         self.annotator_softmax_label_mbem,self.annotators_per_sample_mbem,self.annotator_mask = get_real_annotator_labels(self.annotations,args.K)
                 self.A_true = estimate_confusion_matrices_from_groundtruth(self.annotations,self.train_labels)
             else:
-                print('Wrong choice')
+                logger.info('Wrong choice')
             self.annotations_one_hot[self.annotations_one_hot==0] = args.coeff_label_smoothing/(args.K-1)
             self.annotations_one_hot[self.annotations_one_hot==1] = 1-args.coeff_label_smoothing
 

@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 from sklearn.metrics import f1_score
-import IPython
 from helpers.functions import multi_loss
 import copy
 from torch.autograd import Variable

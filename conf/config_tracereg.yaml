@@ -1,0 +1,9 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: tracereg
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['tracereg']
+with_ray: True
+

@@ -1,0 +1,9 @@
+N: 47500
+M: 3
+K: 10
+dataset: cifar10_machine
+filename: cifar10_machine_annotations_case_2.pkl
+# total_noise_rate: 0.2
+# percent_instance_noise: 0.1
+# instance_indep_conf_type: symmetric
+

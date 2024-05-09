@@ -1,4 +1,0 @@
-defaults:
-  - data: cifar10n
-  - train: opt1
-

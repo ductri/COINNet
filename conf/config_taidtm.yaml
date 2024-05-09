@@ -1,0 +1,10 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: taidtm
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['taidtm']
+method_dir: 'out_taidtm/'
+num_trials: 1
+

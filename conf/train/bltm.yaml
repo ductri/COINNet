@@ -1,0 +1,7 @@
+batch_size: 512
+name: bltm
+num_workers: 3
+warmup_epoch: 10
+num_epochs: 40
+bayes_train_epoch: 50
+

@@ -1,0 +1,10 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: meidtm
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['meidtm']
+method_dir: 'out_meidtm/'
+num_trials: 1
+with_ray: True

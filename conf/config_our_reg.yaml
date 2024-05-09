@@ -1,0 +1,8 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: our_reg
+
+tags: ['our_reg']
+root: "."
+debug: False
+with_ray: False

@@ -1,6 +1,5 @@
 from __future__ import division
 #import mxnet as mx
-import pickle as pkl
 import numpy as np
 import logging,os
 import copy
@@ -27,25 +26,6 @@ from helpers.transformer import *
 import torchvision.transforms as T
 from math import inf
 
-
-def generate_confusion_matrices2(K, M, noise_rate, feature_size, instance_indep_conf_type='symmetric',flag_class_specialists=False):
-    A = np.zeros((M,K,K))
-    P = np.ones((K, K))
-    P = (noise_rate / (K - 1)) * P
-    if noise_rate > 0.0:
-        # 0 -> 1
-        P[0, 0] = 1. - noise_rate
-        for i in range(1, K-1):
-            P[i, i] = 1. - noise_rate
-        P[K-1, K-1] = 1. - noise_rate
-    for m in range(M):
-        A[m] = P
-    if flag_class_specialists:
-        i = np.random.choice(M,1)
-        A[i] = np.identity(K)+args.varepsilon*np.random.uniform(0,1,(K,K))
-        A[i] = np.matmul(A[i],np.diag(np.divide(1,np.sum(A[i],axis=0))))
-    print(A)
-    return A
 
 def generate_confusion_matrices(args,feature_size):
     K=args.K
@@ -149,7 +129,7 @@ def generate_confusion_matrices(args,feature_size):
         #for k in range(K):
         #    A[i,k,k]=gamma
         #print(A[i])
-    # print(A)
+    print(A)
     return A
 
 
@@ -169,158 +149,114 @@ def generate_synthetic_data_and_labels(N,R,K):
     return X, y
 
 def generate_annotator_labels(A,y,train_data,feature_size,transform,args):
-    filename = f'data/syn_labels_p={args.percent_instance_noise:.2f}_n={args.total_noise_rate:.2f}.pkl'
-    if not os.path.exists(filename):
-        M = np.shape(A)[0]
-        N = np.shape(y)[0]
-        K = np.shape(A)[1]
-        f = np.zeros((N,M,K))
-        annotations = -1*np.ones((N,M))
-        annotator_label_mask = np.zeros((N,M))
-        annotator_label = {}
-        for i in range(M):
-            annotator_label['softmax' + str(i) + '_label'] = np.zeros((N,K))
+    M = np.shape(A)[0]
+    N = np.shape(y)[0]
+    K = np.shape(A)[1]
+    f = np.zeros((N,M,K))
+    annotations = -1*np.ones((N,M))
+    annotator_label_mask = np.zeros((N,M))
+    annotator_label = {}
+    for i in range(M):
+        annotator_label['softmax' + str(i) + '_label'] = np.zeros((N,K))
 
-        # Creating some heavy noise rate for instance dependent
-        instance_dep_noise_rate=0.8
-        q_ = np.random.normal(loc=(instance_dep_noise_rate), scale=0.1, size=1000000)
-        q = []
-        for pro in q_:
-            if 0 < pro < 1:
-                q.append(pro)
-            if len(q) == 80000:
-                break
+    # Creating some heavy noise rate for instance dependent
+    instance_dep_noise_rate=0.8
+    q_ = np.random.normal(loc=(instance_dep_noise_rate), scale=0.1, size=1000000)
+    q = []
+    for pro in q_:
+        if 0 < pro < 1:
+            q.append(pro)
+        if len(q) == 80000:
+            break
 
-        annotators_per_sample = []
-        flag_instance_indep_noise=-1*np.ones(N)
-        samples_noisy_label_count = np.zeros(N)
-        samples_total_label_count = np.zeros(N)
-        #w = np.random.normal(loc=0, scale=1, size=(K, M, np.prod(feature_size,dtype=np.int16), K))
-        w = np.random.rand(K, M, np.prod(feature_size,dtype=np.int16), K)
-        sample_type_count=np.zeros(8)
-        for n, sample_numpy in enumerate(train_data):
-            flag_instance_noise=np.random.binomial(1,args.percent_instance_noise)
-            a=np.sort(np.random.choice(M,args.l,replace=False))
-            a = a.reshape(1,-1)
-            annotators_per_sample.append(a[0])
-            count=0
-            noisy_count=0
+    annotators_per_sample = []
+    flag_instance_indep_noise=-1*np.ones(N)
+    samples_noisy_label_count = np.zeros(N)
+    samples_total_label_count = np.zeros(N)
+    #w = np.random.normal(loc=0, scale=1, size=(K, M, np.prod(feature_size,dtype=np.int16), K))
+    w = np.random.rand(K, M, np.prod(feature_size,dtype=np.int16), K)
+    sample_type_count=np.zeros(8)
+    for n, sample_numpy in enumerate(train_data):
+        flag_instance_noise=np.random.binomial(1,args.percent_instance_noise)
+        a=np.sort(np.random.choice(M,args.l,replace=False))
+        a = a.reshape(1,-1)
+        annotators_per_sample.append(a[0])
+        count=0
+        noisy_count=0
 
-            for m in annotators_per_sample[n]:
-                if flag_instance_noise==0:
-                    t =  np.random.multinomial(1,A[m,:,y[n]])
-                    flag_instance_indep_noise[n]=1
-                    # print("Instance-indep_sample")
-                    # print(n)
-                    # print("Annotator")
-                    # print(m)
-                    # print("confusions (instance-indep)")
-                    # print(A[m,:,y[n]])
-                    # print("True Label")
-                    # print(y[n])
-                    # print("Noise label")
-                    # print(np.argmax(t))
-                else:
-                    PILconv = T.ToPILImage()
-                    sample_numpy=sample_numpy.reshape(feature_size)
-                    sample_tensor = torch.tensor(sample_numpy)
-                    sample_PIL = PILconv(sample_tensor)
-                    sample_tensor=transform(sample_PIL)
-                    sample_numpy = sample_tensor.numpy()
-                    sample = sample_numpy.flatten()
-                    sample = sample/np.linalg.norm(sample,2)
-                    conf_instance_dep = np.matmul(sample,w[y[n],m])
-                    #conf_instance_dep[y[n]] = -inf
-                    conf_instance_dep =F.softmax(torch.tensor(conf_instance_dep),dim=0)
-                    #conf_instance_dep =q[n]*F.softmax(conf_instance_dep,dim=0).numpy()
-                    #conf_instance_dep[y[n]]=1-q[n]
-                    conf_instance_dep = conf_instance_dep/sum(conf_instance_dep)
-                    flag_instance_indep_noise[n]=0
-                    t =  np.random.multinomial(1,conf_instance_dep)
-                    # print("Instance-dep_sample")
-                    # print(n)
-                    # print("Annotator")
-                    # print(m)
-                    # print("confusions (instance-dep)")
-                    # print(conf_instance_dep)
-                    # print("true_label")
-                    # print(y[n])
-                    # print("noisy_label")
-                    # print(np.argmax(t))
-
-
-                #input("Press Enter to continue...")
-                f[n,m,:] = t
-                annotations[n,m]=np.argmax(t)
-                annotator_label_mask[n,m]=1
-                annotator_label['softmax' + str(count) + '_label'][n] = t
-                count = count +1
-                if y[n]!= annotations[n,m]:
-                    noisy_count=noisy_count+1
-                if annotations[n,m]!=-1:
-                    samples_total_label_count[n]+=1
-
-            samples_noisy_label_count[n] = noisy_count
-            if flag_instance_noise==0 and noisy_count==0:
-                sample_type_count[0]=sample_type_count[0]+1
-            if flag_instance_noise==0 and noisy_count==1:
-                sample_type_count[1]=sample_type_count[1]+1
-            if flag_instance_noise==0 and noisy_count==2:
-                sample_type_count[2]=sample_type_count[2]+1
-            if flag_instance_noise==0 and noisy_count==3:
-                sample_type_count[3]=sample_type_count[3]+1
-            if flag_instance_noise==1 and noisy_count==0:
-                sample_type_count[4]=sample_type_count[4]+1
-            if flag_instance_noise==1 and noisy_count==1:
-                sample_type_count[5]=sample_type_count[5]+1
-            if flag_instance_noise==1 and noisy_count==2:
-                sample_type_count[6]=sample_type_count[6]+1
-            if flag_instance_noise==1 and noisy_count==3:
-                sample_type_count[7]=sample_type_count[7]+1
-
-
-        print("Sample type counts")
-        print(sample_type_count)
-        print("Sample type counts percent")
-        print(sample_type_count/N)
-        #input("Press Enter to continue...")
-
-        print(flag_instance_indep_noise[0])
-        print(flag_instance_indep_noise[1])
-        print(flag_instance_indep_noise[2])
-        print(flag_instance_indep_noise[28])
-        print(flag_instance_indep_noise[31])
-        #input("Press Enter to continue...")
+        for m in annotators_per_sample[n]:
+            if flag_instance_noise==0:
+                t =  np.random.multinomial(1,A[m,:,y[n]])
+                flag_instance_indep_noise[n]=1
+            else:
+                PILconv = T.ToPILImage()
+                sample_numpy=sample_numpy.reshape(feature_size)
+                sample_tensor = torch.tensor(sample_numpy)
+                sample_PIL = PILconv(sample_tensor)
+                sample_tensor=transform(sample_PIL)
+                sample_numpy = sample_tensor.numpy()
+                sample = sample_numpy.flatten()
+                sample = sample/np.linalg.norm(sample,2)
+                conf_instance_dep = np.matmul(sample,w[y[n],m])
+                conf_instance_dep =F.softmax(torch.tensor(conf_instance_dep),dim=0)
+                conf_instance_dep = conf_instance_dep/sum(conf_instance_dep)
+                flag_instance_indep_noise[n]=0
+                t =  np.random.multinomial(1,conf_instance_dep)
 
 
 
-        answers_bin_missings = []
-        annotations = annotations.astype(int)
-        for i in range(N):
-            row = []
-            for r in range(M):
-                if annotations[i, r] == -1:
-                    row.append(0 * np.ones(K))
-                else:
-                    row.append(one_hot(annotations[i, r], K)[0, :])
-            answers_bin_missings.append(row)
+            f[n,m,:] = t
+            annotations[n,m]=np.argmax(t)
+            annotator_label_mask[n,m]=1
+            annotator_label['softmax' + str(count) + '_label'][n] = t
+            count = count +1
+            if y[n]!= annotations[n,m]:
+                noisy_count=noisy_count+1
+            if annotations[n,m]!=-1:
+                samples_total_label_count[n]+=1
 
-        answers_bin_missings = np.array(answers_bin_missings)
-        for m in range(M):
-            print(y[1:100])
-            print(annotations[1:100,m])
-            over_all_noise_rate = 1 - float(torch.tensor(y).eq(torch.tensor(annotations[:,m])).sum())/train_data.shape[0]
-            print("Overall noise rate for annotator-"+str(m))
-            print(over_all_noise_rate)
+        samples_noisy_label_count[n] = noisy_count
+        if flag_instance_noise==0 and noisy_count==0:
+            sample_type_count[0]=sample_type_count[0]+1
+        if flag_instance_noise==0 and noisy_count==1:
+            sample_type_count[1]=sample_type_count[1]+1
+        if flag_instance_noise==0 and noisy_count==2:
+            sample_type_count[2]=sample_type_count[2]+1
+        if flag_instance_noise==0 and noisy_count==3:
+            sample_type_count[3]=sample_type_count[3]+1
+        if flag_instance_noise==1 and noisy_count==0:
+            sample_type_count[4]=sample_type_count[4]+1
+        if flag_instance_noise==1 and noisy_count==1:
+            sample_type_count[5]=sample_type_count[5]+1
+        if flag_instance_noise==1 and noisy_count==2:
+            sample_type_count[6]=sample_type_count[6]+1
+        if flag_instance_noise==1 and noisy_count==3:
+            sample_type_count[7]=sample_type_count[7]+1
 
-        mdict = {'data': (f,annotations,flag_instance_indep_noise,answers_bin_missings,annotator_label,annotators_per_sample,annotator_label_mask,samples_noisy_label_count,samples_total_label_count)}
-        with open(filename, 'bw') as o_f:
-            pkl.dump(mdict, o_f)
-    else:
-        print(f'loading from saved file at {filename}')
-        with open(filename, 'br') as i_f:
-            mdict = pkl.load(i_f)
-    return mdict['data']
+
+
+
+
+
+    answers_bin_missings = []
+    annotations = annotations.astype(int)
+    for i in range(N):
+        row = []
+        for r in range(M):
+            if annotations[i, r] == -1:
+                row.append(0 * np.ones(K))
+            else:
+                row.append(one_hot(annotations[i, r], K)[0, :])
+        answers_bin_missings.append(row)
+
+    answers_bin_missings = np.array(answers_bin_missings)
+    for m in range(M):
+        print(y[1:100])
+        print(annotations[1:100,m])
+        over_all_noise_rate = 1 - float(torch.tensor(y).eq(torch.tensor(annotations[:,m])).sum())/train_data.shape[0]
+        print("Overall noise rate for annotator-"+str(m))
+        print(over_all_noise_rate)
+    return f,annotations,flag_instance_indep_noise,answers_bin_missings,annotator_label,annotators_per_sample,annotator_label_mask,samples_noisy_label_count,samples_total_label_count
 
 def get_real_annotator_labels(annotations,K):
     M = np.shape(annotations)[1]

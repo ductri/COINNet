@@ -1,0 +1,9 @@
+batch_size: 512
+num_estimate_epochs: 50
+name: ptd
+n_epoch_1: 5
+n_epoch_2: 50
+n_epoch_3: 50
+n_epoch_4: 1000
+num_workers: 3
+

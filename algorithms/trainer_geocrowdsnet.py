@@ -17,6 +17,8 @@ import seaborn as sn
 import pandas as pd
 import matplotlib.pyplot as plt
 import wandb
+from tqdm import tqdm
+from utils import count_parameters
 
 
 def trainer_geocrowdsnet(args,alg_options,logger):
@@ -49,88 +51,96 @@ def train_val(args,alg_options,logger):
     device = alg_options['device']
     # annotations_list = alg_options['annotations_list_maxmig']
 
-    if args.dataset=='synthetic':
-        # Instantiate the model f and the model for confusion matrices
-        hidden_layers=1
-        hidden_units=10
-        model_f = FCNN(args.R,args.K,hidden_layers,hidden_units)
-        model_A = confusion_matrices(args.device,args.M,args.K)
+    # if args.dataset=='synthetic':
+    #     # Instantiate the model f and the model for confusion matrices
+    #     hidden_layers=1
+    #     hidden_units=10
+    #     model_f = FCNN(args.R,args.K,hidden_layers,hidden_units)
+    #     model_A = confusion_matrices(args.device,args.M,args.K)
+    #
+    #     # The optimizers
+    #     optimizer_f = optim.Adam(model_f.parameters(),lr=args.learning_rate,weight_decay=1e-5)
+    #     optimizer_A = optim.Adam(model_A.parameters(),lr=args.learning_rate,weight_decay=1e-5)
+    #
+    # elif args.dataset=='mnist':
+    #     # Instantiate the model f and the model for confusion matrices
+    #     if args.proposed_init_type=='mle_based':
+    #         A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
+    #     elif args.proposed_init_type=='identity':
+    #         A_init=[]
+    #     else:
+    #         A_init=[]
+    #     model_f = CrowdNetwork(args.R,args.M,args.K,'lenet',args.proposed_init_type,A_init)
+    #
+    #     # The optimizers
+    #     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    #
+    # elif args.dataset=='fmnist':
+    #     # Instantiate the model f and the model for confusion matrices
+    #     if args.proposed_init_type=='mle_based':
+    #         A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
+    #     elif args.proposed_init_type=='identity':
+    #         A_init=[]
+    #     else:
+    #         A_init=[]
+    #     model_f = CrowdNetwork(args,A_init)
+    #
+    #     # The optimizers
+    #     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    #
+    # elif args.dataset=='labelme':
+    #     # Instantiate the model f and the model for confusion matrices
+    #     if args.proposed_init_type=='mle_based':
+    #         A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
+    #     elif args.proposed_init_type=='identity':
+    #         A_init=[]
+    #     else:
+    #         A_init=[]
+    #     args.classifier_NN= 'fcnn_dropout'
+    #     model_f = CrowdNetwork(args,A_init)
+    #
+    #     # The optimizers
+    #     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    #
+    # elif args.dataset=='music':
+    #     # Instantiate the model f and the model for confusion matrices
+    #     #model_f = CrowdLayer(args.R,args.M,args.K,'fcnn_dropout_batchnorm')
+    #     if args.proposed_init_type=='mle_based':
+    #         A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
+    #     elif args.proposed_init_type=='identity':
+    #         A_init=[]
+    #     else:
+    #         A_init=[]
+    #     args.classifier_NN= 'fcnn_dropout'
+    #     model_f = CrowdNetwork(args,A_init)
+    #     # The optimizers
+    #     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    # elif args.dataset=='cifar10' or args.dataset == 'cifar10n':
+    #     if args.proposed_init_type=='mle_based':
+    #         A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
+    #     elif args.proposed_init_type=='identity':
+    #         A_init=[]
+    #     else:
+    #         A_init=[]
+    #     model_f = CrowdNetwork(args,A_init)
+    #     # Instantiate the model f and the model for confusion matrices
+    #     # The optimizers
+    #     #optimizer_f = optim.SGD(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4,momentum=0.9)
+    #     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    #     #scheduler_f = MultiStepLR(optimizer_f, milestones=alg_options['milestones'], gamma=0.1)
+    #     scheduler_f = optim.lr_scheduler.OneCycleLR(optimizer_f, args.learning_rate, epochs=args.n_epoch, steps_per_epoch=len(train_loader))
+    # else:
+    #     logger.info('Incorrect choice for dataset')
 
-        # The optimizers
-        optimizer_f = optim.Adam(model_f.parameters(),lr=args.learning_rate,weight_decay=1e-5)
-        optimizer_A = optim.Adam(model_A.parameters(),lr=args.learning_rate,weight_decay=1e-5)
+    A_init=[]
+    model_f = CrowdNetwork(args,A_init)
+    optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
+    scheduler_f = optim.lr_scheduler.OneCycleLR(optimizer_f, args.learning_rate, epochs=args.n_epoch, steps_per_epoch=len(train_loader))
 
-    elif args.dataset=='mnist':
-        # Instantiate the model f and the model for confusion matrices
-        if args.proposed_init_type=='mle_based':
-            A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
-        elif args.proposed_init_type=='identity':
-            A_init=[]
-        else:
-            A_init=[]
-        model_f = CrowdNetwork(args.R,args.M,args.K,'lenet',args.proposed_init_type,A_init)
-
-        # The optimizers
-        optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
-
-    elif args.dataset=='fmnist':
-        # Instantiate the model f and the model for confusion matrices
-        if args.proposed_init_type=='mle_based':
-            A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
-        elif args.proposed_init_type=='identity':
-            A_init=[]
-        else:
-            A_init=[]
-        model_f = CrowdNetwork(args,A_init)
-
-        # The optimizers
-        optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
-
-    elif args.dataset=='labelme':
-        # Instantiate the model f and the model for confusion matrices
-        if args.proposed_init_type=='mle_based':
-            A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
-        elif args.proposed_init_type=='identity':
-            A_init=[]
-        else:
-            A_init=[]
-        args.classifier_NN= 'fcnn_dropout'
-        model_f = CrowdNetwork(args,A_init)
-
-        # The optimizers
-        optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
-
-    elif args.dataset=='music':
-        # Instantiate the model f and the model for confusion matrices
-        #model_f = CrowdLayer(args.R,args.M,args.K,'fcnn_dropout_batchnorm')
-        if args.proposed_init_type=='mle_based':
-            A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
-        elif args.proposed_init_type=='identity':
-            A_init=[]
-        else:
-            A_init=[]
-        args.classifier_NN= 'fcnn_dropout'
-        model_f = CrowdNetwork(args,A_init)
-        # The optimizers
-        optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
-    elif args.dataset=='cifar10' or args.dataset == 'cifar10n':
-        if args.proposed_init_type=='mle_based':
-            A_init=confusion_matrix_init_mle_based(annotations_list,args.M,args.K)
-        elif args.proposed_init_type=='identity':
-            A_init=[]
-        else:
-            A_init=[]
-        model_f = CrowdNetwork(args,A_init)
-        # Instantiate the model f and the model for confusion matrices
-        # The optimizers
-        #optimizer_f = optim.SGD(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4,momentum=0.9)
-        optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
-        #scheduler_f = MultiStepLR(optimizer_f, milestones=alg_options['milestones'], gamma=0.1)
-        scheduler_f = optim.lr_scheduler.OneCycleLR(optimizer_f, args.learning_rate, epochs=args.n_epoch, steps_per_epoch=len(train_loader))
-    else:
-        logger.info('Incorrect choice for dataset')
     if torch.cuda.is_available:
         model_f = model_f.to(device)
+
+    print(f'Number of trainable params: {count_parameters(model_f)}')
 
     # Loss function
     loss_function = torch.nn.NLLLoss(ignore_index=-1, reduction='mean')
@@ -142,13 +152,22 @@ def train_val(args,alg_options,logger):
     flag_lr_scheduler=alg_options['flag_lr_scheduler']
 
 
-    method=alg_options['method']
-    if method=='GEOCROWDNET':
+    # method=alg_options['method']
+    # if method=='GEOCROWDNET':
+    #     reg_loss_function =regularization_loss_logdeth
+    #     log_file_identifier ='_logdeth'
+    # elif method =='VOLMINEECS_LOGDETW':
+    #     reg_loss_function=regularization_loss_logdetw
+    #     #reg_loss_function=regularization_loss_logdeth_min
+    #     log_file_identifier ='_logdetw'
+    # else:
+    #     print('Invalid reg loss function!!!!!!!')
+
+    if args.vol_reg_type == 'max_logdeth':
         reg_loss_function =regularization_loss_logdeth
         log_file_identifier ='_logdeth'
-    elif method =='VOLMINEECS_LOGDETW':
+    elif args.vol_reg_type == 'max_logdetw':
         reg_loss_function=regularization_loss_logdetw
-        #reg_loss_function=regularization_loss_logdeth_min
         log_file_identifier ='_logdetw'
     else:
         print('Invalid reg loss function!!!!!!!')
@@ -172,7 +191,7 @@ def train_val(args,alg_options,logger):
         n_train_acc=0
         #for i, data_t in enumerate(train_loader):
         # for _,batch_x, batch_annotations, batch_annot_onehot, batch_annot_mask, batch_annot_list, batch_y,_,_,_ in train_loader:
-        for batch_x, batch_annotations, _, _ in train_loader:
+        for batch_x, batch_annotations, _, _ in tqdm(train_loader):
             flag=0
             if torch.cuda.is_available:
                 batch_x=batch_x.to(device)
@@ -242,7 +261,8 @@ def train_val(args,alg_options,logger):
                 'Regularizer loss': reg_loss / len_train_data*args.batch_size,   \
                 'Train Acc': n_train_acc / len_train_data,
                 'Val. Acc': n_val_acc / len_val_data,
-                'Estim. error': A_est_error
+                'Estim. error': A_est_error,
+                'lam_tracking': args.lam,
                 })
 
         if val_acc_list[epoch] >= best_val_score:

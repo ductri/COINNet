@@ -1,0 +1,9 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: cores
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['cores']
+method_dir: out_cores/
+

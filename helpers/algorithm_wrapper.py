@@ -14,17 +14,17 @@ import copy
 import math
 from numpy.matlib import repmat
 from torch.optim.lr_scheduler import MultiStepLR
-# from algorithms.trainer_conal import *
-# from algorithms.trainer_maxmig import *
-# from algorithms.trainer_doctornet import *
+from algorithms.trainer_conal import *
+from algorithms.trainer_maxmig import *
+from algorithms.trainer_doctornet import *
 from algorithms.trainer_crowdfeanet import *
-# from algorithms.trainer_mbem import *
-# from algorithms.trainer_crowdlayer import *
-# from algorithms.trainer_dlmv import *
-# from algorithms.trainer_dldsem import *
-# from algorithms.trainer_traceregeecs import *
-# from algorithms.trainer_noregeecs import *
-from algorithms.trainer_geocrowdsnet import trainer_geocrowdsnet
+from algorithms.trainer_mbem import *
+from algorithms.trainer_crowdlayer import *
+from algorithms.trainer_dlmv import *
+from algorithms.trainer_dldsem import *
+from algorithms.trainer_traceregeecs import *
+from algorithms.trainer_noregeecs import *
+from algorithms.trainer_geocrowdsnet import *
 
 
 def algorithmwrapperEECS(args,alg_options,logger):

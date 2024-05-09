@@ -1,8 +1,12 @@
+from pathlib import Path
 import torch
 from torch import Tensor
 import numpy as np
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+import ray
+import wandb
+from omegaconf import OmegaConf
 
 
 def get_loader(dataset, batch_size, num_workers):
@@ -55,4 +59,45 @@ def plot_distribution(x: Tensor, title: str) -> plt.Figure:
 def turn_off_grad(module):
     for j, p in enumerate(module.parameters()):
         p.requires_grad_(False)
+
+
+def save_model(model, path):
+    print(f'Saved model to {path}')
+    torch.save(model.state_dict(), path)
+
+def load_model(model, path):
+    state_dict = torch.load(path)
+    model.load_state_dict(state_dict)
+    print(f'Restored model from {path}')
+
+def make_dir(path):
+    Path(path).mkdir(parents=True, exist_ok=True)
+    print(f'Created path {path}')
+
+
+def create_ray_wrapper(main_func):
+    """
+    main_func(conf)
+    """
+    project_name = 'shahana_outlier'
+    @ray.remote(num_cpus=12, num_gpus=1)
+    def ray_wrapper(conf):
+            main_func(conf)
+
+    def my_wrapper(conf):
+        ray.init(address='auto')
+        ray.get(ray_wrapper.remote(conf))
+
+    return my_wrapper
+
+
+def create_wandb_wrapper(main_func):
+    """
+    main_func(conf, unique_name)
+    """
+    project_name = 'shahana_outlier'
+    def wrapper(conf):
+        with wandb.init(entity='narutox', project=project_name, tags=conf.tags, config=OmegaConf.to_container(conf, resolve=True)) as run:
+            main_func(conf, run.name)
+    return wrapper
 

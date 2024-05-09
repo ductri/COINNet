@@ -30,7 +30,7 @@ parser.add_argument('--l',type=int,help='number of annotations per sample or num
 parser.add_argument('--flag_class_specialists',type=bool,help='True or False',default=False)
 parser.add_argument('--dataset',type=str,help='synthetic or cifar10 or mnist',default='cifar10')
 parser.add_argument('--annotator_type',type=str,help='synthetic, machine-classifier, good-bad-annotator-mix or real',default='synthetic')
-parser.add_argument('--instance_indep_conf_type',type=str,help='symmetric,separable_uniform',default='symmetric_average')
+parser.add_argument('--instance_indep_conf_type',type=str,help='symmetric,separable_uniform',default='symmetric')
 parser.add_argument('--flag_preload_annotations',type=bool,help='True or False (if True, load annotations from file, otherwise generate annotations',\
 															default=True)
 parser.add_argument('--varepsilon',type=float,help='parameter for class specialists',default=0.001)
@@ -43,7 +43,7 @@ parser.add_argument('--n_trials',type=int,help='No of trials',default=1)
 parser.add_argument('--flag_hyperparameter_tuning',type=bool,help='True or False',default=False)
 parser.add_argument('--proposed_init_type',type=str,help='close_to_identity or mle_based or identity',default='identity')
 parser.add_argument('--proposed_projection_type',type=str,help='simplex_projection or softmax or sigmoid_projection',default='simplex_projection')
-parser.add_argument('--classifier_NN',type=str,help='resnet9 or resnet18 or resnet34',default='resnet9')
+parser.add_argument('--classifier_NN',type=str,help='resnet9 or resnet18 or resnet34',default='resnet34')
 parser.add_argument('--weight_decay', type=float, help='weight_decay for the optimizer', default=1e-3)
 
 parser.add_argument('--total_noise_rate', type = float, help = 'overall noise rate for the labels', default =0.4)

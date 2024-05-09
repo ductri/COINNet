@@ -1,0 +1,9 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: ptd
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['ptd']
+method_dir: out_ptd/
+with_ray: True

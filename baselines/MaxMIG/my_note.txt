@@ -1,0 +1,13 @@
+- Step 1 in inspecting their code: let's see what's their data format before feeding to the model
+left_data: just images (batch x color_channel x 32 x 32)
+right_data: (batch x num_expert x num_classes), they are one-hot vectors
+label: just class labels, (batch)
+
+- Okay, we are gonna try with extracted feature.
+```
+python3 main.py --case 1 --expertise 1 --path /scratch/tri/noisy_labels/data/cifar10/raw/ --device 1
+```
+
+- AHHH, now we have to tune lr to make this method work. What a waste of time! 
+Next step: try several learning rates with an easy permuted confusion matrix.
+

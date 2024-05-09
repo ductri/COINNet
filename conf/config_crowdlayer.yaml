@@ -1,0 +1,8 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: crowdlayer
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['crowdlayer']
+with_ray: True

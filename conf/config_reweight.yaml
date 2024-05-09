@@ -1,0 +1,10 @@
+defaults:
+  - data: cifar10_syn
+  - train: reweight
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['reweight']
+model_dir: out_reweight/
+with_ray: True
+

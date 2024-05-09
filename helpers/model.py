@@ -7,12 +7,10 @@ import torch.hub as hub
 import torchvision.models as models
 from torch.autograd import Variable
 import math
-from torchvision import transforms
-
 from helpers.vgg import *
+from torchvision import transforms
 from algorithms.functional_conal import *
 from algorithms.common_maxmig import *
-import utils
 
 
 class FCNN(nn.Module):
@@ -139,58 +137,6 @@ class CrowdNetwork(nn.Module):
         y = torch.einsum('ij, bkj -> ibk',x,A)
         #y = F.softmax(y,dim=2)
         #E=torch.tensor(A)
-        return(x,y,A)
-
-class CrowdNetworkIndep(nn.Module):
-    def __init__(self):
-        super(CrowdNetworkIndep, self).__init__()
-        M = 3
-        K = 10
-        self.fnet = ResNet9(K)
-        print(f'fnet size: {utils.count_parameters(self.fnet)}')
-        self.P = nn.Parameter(torch.stack([torch.eye(K) for _ in range(M)]), requires_grad=True)
-
-    def forward(self,x,i):
-        x,g = self.fnet(x)
-        A = F.softmax(self.P,dim=1)
-        y = torch.einsum('...j, ...mkj -> ...mk',x,A)
-        return(x,y,A)
-
-    def pred_cls(self, x):
-        return self.forward(x, 0)
-
-
-class CrowdNetwork2(nn.Module):
-    def __init__(self, N):
-        super(CrowdNetwork2, self).__init__()
-        M = 3
-        K = 10
-        self.fnet = ResNet9(K)
-        print(f'fnet size: {utils.count_parameters(self.fnet)}')
-        self.P = nn.Parameter(torch.stack([torch.eye(K) for _ in range(M)]), requires_grad=True)
-        tmp = torch.stack([torch.stack([torch.eye(K) for _ in range(M)]) for _ in range(N)])
-        self.P_sample = nn.Parameter(tmp, requires_grad=True)
-        self.softmax_P = nn.Softmax(dim=1)
-        self.softmax_P_sample = nn.Softmax(dim=2)
-
-    # def forward(self,x,i):
-    #     x,g = self.fnet(x)
-    #     A = self.softmax_P_sample(self.P_sample[i])
-    #     y = torch.einsum('...j, ...mkj -> ...mk',x,A)
-    #     return(x,y,A)
-    def forward(self,x,i):
-        x,g = self.fnet(x)
-        P = self.P_sample[i]
-        # P = self.P.repeat(i.shape[0], 1, 1, 1)
-        A = self.softmax_P_sample(P)
-        y = torch.einsum('...j, ...mkj -> ...mk',x,A)
-        return(x,y,A)
-
-    def pred_cls(self, x):
-        x,g = self.fnet(x)
-        # A = F.softmax(self.P,dim=1)
-        A = self.softmax_P(self.P)
-        y = torch.einsum('ij, bkj -> ibk',x,A)
         return(x,y,A)
 
 

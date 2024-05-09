@@ -1,0 +1,9 @@
+defaults:
+  - data: cifar10_machine_6
+  - train: bltm
+
+root: '.'
+fnet_type: 'resnet34'
+tags: ['bltm']
+method_dir: out_bltm/
+with_ray: True

@@ -1,0 +1,12 @@
+lr: 1e-3
+batch_size: 512
+lam: 1e-3
+name: taidtm
+num_workers: 3
+
+num_epochs: 50
+warmup_epoch: 5
+TM_epoch: 10
+FT_TM_epoch: 5
+GCN_TM_epoch: 5
+another_epoch: 10

@@ -1,6 +1,6 @@
 lr: 1e-3
 batch_size: 512
-lam1: 1e-3
+lam1: 1e-2
 lam2: 1e-2
 num_epochs: 100
 name: reg_version

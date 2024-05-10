@@ -22,5 +22,7 @@ source ../venvs/pytorch12/bin/activate
 echo "python localtion: $(which python)"
 
 # This is the main command
-python src/run_geocrowdnet.py -m train.lam=1e-3,1e-4,1e-5
+python src/run_geocrowdnet.py -m train.lam=1e-2,1e-3,1e-4 data=cifar10_machine_6;
+python src/run_geocrowdnet.py -m train.lam=1e-2,1e-3,1e-4 data=cifar10_machine_6;
+python src/run_geocrowdnet.py -m train.lam=1e-2,1e-3,1e-4 data=cifar10_machine_6;
 

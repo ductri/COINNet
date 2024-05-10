@@ -1,8 +1,8 @@
 # bad: crisp-plasma-491
 # decent: 
 # good: 
-codenames: ["sandy-sun-327", "magic-pyramid-358"]
-epochs: ["59", "09"]
+codenames: ["serene-wind-528", "magic-pyramid-358"]
+epochs: ["19", "09"]
 filename: cifar10_machine_annotations_knn_nn_nn_2.pkl
 root: "."
 

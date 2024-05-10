@@ -7,6 +7,5 @@ fnet_type: 'resnet34'
 tags: ['volminnet']
 method_dir: 'out_volminnet/'
 num_trials: 1
-
-with_ray: False
+with_ray: True
 

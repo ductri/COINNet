@@ -24,6 +24,7 @@ from omegaconf import DictConfig
 
 # from helpers.model import CrowdNetwork2
 from helpers.data_load import cifar10_dataset, cifar10_test_dataset
+from helpers.data_load_new import fmnist_dataset, fmnist_test_dataset
 from helpers.transformer import transform_train, transform_test, transform_target
 # from helpers.functions import generate_confusion_matrices2
 
@@ -63,7 +64,7 @@ class FakeLogger:
 class CIFAR10N(Dataset):
     def __init__(self, cifar10_clean_ds, correspond_indices):
         super().__init__()
-        noise_file = torch.load('/scratch/tri/shahana_outlier/data/cifar10n/CIFAR-10_human.pt')
+        noise_file = torch.load('./data/cifar10n/CIFAR-10_human.pt')
         self.clean_label = noise_file['clean_label']
         worst_label = noise_file['worse_label']
         aggre_label = noise_file['aggre_label']
@@ -270,6 +271,49 @@ class CIFAR10ShahanaModule(L.LightningDataModule):
         # Used to clean-up when the run is finished
         ...
 
+
+class LitFmnistShahanaModule(L.LightningDataModule):
+    def __init__(self, config: DictConfig):
+        super().__init__()
+        self.config = config
+
+
+    def setup(self, stage:str=''):
+        args = shahana_default_setting(self.config)
+
+        if stage == 'fit':
+            logger = FakeLogger()
+            train_data     = fmnist_dataset(True, transform=transform_train(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
+            val_data     = fmnist_dataset(False, transform=transform_test(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
+
+            # # DEBUG
+            # self.data_train = Subset(train_data, range(10*1024))
+            # self.data_val = Subset(val_data, range(1024))
+            self.data_train = train_data
+            self.data_val = val_data
+        elif stage == 'test':
+            test_data     = fmnist_test_dataset(transform=transform_test(args.dataset), target_transform=transform_target)
+            self.data_test = test_data
+        self.batch_size = args.batch_size
+        print('Done SETTING data module!')
+
+    def train_dataloader(self):
+        return DataLoader(DatasetAdapter(self.data_train, [1, 2, 0, 7]), batch_size=self.batch_size, num_workers=9, shuffle=True)
+
+    def val_dataloader(self):
+        return DataLoader(self.data_val, batch_size=self.batch_size, num_workers=3)
+
+    def test_dataloader(self):
+        return DataLoader(self.data_test, batch_size=self.batch_size, num_workers=3)
+
+    # def predict_dataloader(self):
+    #     return DataLoader(self.data_predict, batch_size=self.batch_size)
+
+    def teardown(self, stage: str):
+        # Used to clean-up when the run is finished
+        ...
+
+
 class LitCIFAR10N(L.LightningDataModule):
     def __init__(self, batch_size: int):
         super().__init__()
@@ -288,7 +332,7 @@ class LitCIFAR10N(L.LightningDataModule):
             v2.ToTensor(),
             ])
         self.generator = torch.Generator().manual_seed(42)
-        self.train_indices, self.val_indices = random_split(range(50000), [0.8, 0.2], generator=self.generator)
+        self.train_indices, self.val_indices = random_split(range(50000), [0.95, 0.05], generator=self.generator)
 
         self.batch_size = batch_size
 
@@ -297,8 +341,8 @@ class LitCIFAR10N(L.LightningDataModule):
 
     def setup(self, stage:str=''):
         if stage == 'fit':
-            clean_train_set = Subset(CIFAR10('/scratch/tri/datasets', train=True, transform=self.transform_train), self.train_indices)
-            clean_val_set = Subset(CIFAR10('/scratch/tri/datasets', train=True, transform=self.transform_val), self.val_indices)
+            clean_train_set = Subset(CIFAR10('./../datasets/', train=True, transform=self.transform_train), self.train_indices)
+            clean_val_set = Subset(CIFAR10('./../datasets/', train=True, transform=self.transform_val), self.val_indices)
 
             self.train_set = CIFAR10N(clean_train_set, self.train_indices)
             self.val_set = clean_val_set
@@ -309,8 +353,7 @@ class LitCIFAR10N(L.LightningDataModule):
             self.test_set = CIFAR10('./../datasets/', train=False, transform=self.transform_val)
             print(f'test size: {len(self.test_set)}')
         elif stage == 'pred':
-            clean_train_set = Subset(CIFAR10('/scratch/tri/datasets', train=True, transform=self.transform_pred), self.train_indices)
-            # clean_val_set = Subset(CIFAR10('/scratch/tri/datasets', train=True, transform=self.transform_val), self.val_indices)
+            clean_train_set = Subset(CIFAR10('./../datasets/', train=True, transform=self.transform_pred), self.train_indices)
 
             self.train_set = CIFAR10N(clean_train_set, self.train_indices)
         print('Done SETTING data module for CIFAR10-N!')
@@ -386,11 +429,9 @@ class LitCIFAR10MachineAnnotations(L.LightningDataModule):
         elif stage == 'test':
             self.test_set = CIFAR10('./../datasets/', train=False, transform=self.transform_val)
             print(f'test size: {len(self.test_set)}')
-        elif stage == 'pred':
-            clean_train_set = Subset(CIFAR10(f'{self.root}/../datasets',
-                train=True, transform=self.transform_pred), self.train_indices)
-            # clean_val_set = Subset(CIFAR10('/scratch/tri/datasets', train=True, transform=self.transform_val), self.val_indices)
-            # self.train_set = CIFAR10N(clean_train_set, self.train_indices)
+        # elif stage == 'pred':
+        #     clean_train_set = Subset(CIFAR10(f'{self.root}/../datasets',
+        #         train=True, transform=self.transform_pred), self.train_indices)
         print('Done setting up data module for CIFAR10 with MACHINE annotations!')
 
     def train_dataloader(self):
@@ -461,6 +502,8 @@ def get_dataset(conf) -> LitDataset:
         test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
         data_module = LitDataset(train_dataset, val_dataset, test_dataset,
                 conf.train.batch_size)
+    elif conf.data.dataset == 'fmnist':
+        data_module = LitFmnistShahanaModule(conf)
     else:
         raise Exception('typo in data name')
     return data_module

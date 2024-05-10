@@ -1,21 +1,13 @@
 #!/bin/bash
-python src/run_meidtm.py data=cifar10_machine_6
-python src/run_meidtm.py data=cifar10_machine_7
-python src/run_meidtm.py data=cifar10_machine_6
-python src/run_meidtm.py data=cifar10_machine_7
-python src/run_meidtm.py data=cifar10_machine_6
-python src/run_meidtm.py data=cifar10_machine_7
-python src/run_crowdlayer.py data=cifar10_machine_6
-python src/run_crowdlayer.py data=cifar10_machine_7
-python src/run_crowdlayer.py data=cifar10_machine_7
-
-python src/run_crowdlayer.py data=cifar10_machine_7
-python src/run_geocrowdnet.py data=cifar10_machine_6 train=geocrowdnetw
-python src/run_geocrowdnet.py data=cifar10_machine_7 train=geocrowdnetw
-python src/run_ptd.py data=cifar10_machine_6
-python src/run_ptd.py data=cifar10_machine_7
-python src/run_bltm.py data=cifar10_machine_6
-python src/run_bltm.py data=cifar10_machine_7
-python src/run_volminnet.py data=cifar10_machine_6
-python src/run_volminnet.py data=cifar10_machine_7
+CUDA_VISIBLE_DEVICES=0
+python src/run_maxmig.py data=cifar10_machine_6.5 with_ray=False;
+python src/run_maxmig.py data=cifar10_machine_6.5 with_ray=False;
+python src/run_maxmig.py data=cifar10_machine_6.5 with_ray=False;
+python src/my_training.py data=cifar10_machine_6.5 train.lam1=1e-2 with_ray=False;
+python src/my_training.py data=cifar10_machine_6.5 train.lam1=1e-2 with_ray=False;
+python src/run_geocrowdnet.py data=cifar10_machine_6.5 train.lam=1e-2 with_ray=False;
+python src/run_geocrowdnet.py data=cifar10_machine_6.5 train.lam=1e-2 with_ray=False;
+python src/run_tracereg.py data=cifar10_machine_6.5 with_ray=False;
+python src/run_tracereg.py data=cifar10_machine_6.5 with_ray=False;
+echo "done"
 

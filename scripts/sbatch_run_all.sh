@@ -22,8 +22,11 @@ source ../venvs/pytorch12/bin/activate
 echo "python location: $(which python)"
 
 # This is the main command
-python src/run_tracereg.py data=cifar10_machine_6 with_ray=False && \
-python src/run_tracereg.py data=cifar10_machine_7 with_ray=False && \
-python src/run_crowdlayer.py data=cifar10_machine_6 with_ray=False && \
-python src/run_crowdlayer.py data=cifar10_machine_7 with_ray=False
+python src/run_crowdlayer.py data=cifar10_machine_6 with_ray=False; \
+python src/run_crowdlayer.py data=cifar10_machine_7 with_ray=False; \
+python src/run_tracereg.py data=cifar10_machine_6 with_ray=False; \
+python src/run_tracereg.py data=cifar10_machine_7 with_ray=False; \
+python src/run_geocrowdnet.py  train=geocrowdnetw data=cifar10_machine_6; \
+python src/run_geocrowdnet.py  train=geocrowdnetw data=cifar10_machine_7; \
+echo Done
 

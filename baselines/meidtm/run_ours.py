@@ -41,7 +41,7 @@ def super_main(conf, unique_name):
     parser.add_argument('--u', type = float, default =0.8)
 
     args = parser.parse_args([])
-    args.save_dir = f'{conf.model_dir}/save_dir/{unique_name}/'
+    args.save_dir = f'{conf.method_dir}/save_dir/{unique_name}/'
     # np.set_printoptions(precision=2,suppress=True)
 
     torch.backends.cudnn.benchmark = True

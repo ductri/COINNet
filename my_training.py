@@ -25,8 +25,6 @@ from utils import create_ray_wrapper, create_wandb_wrapper
 
 
 def my_main(conf, unique_name):
-    # project_name = 'shahana_outlier'
-    # with wandb.init(entity='narutox', project=project_name, tags=conf.tags, config=OmegaConf.to_container(conf, resolve=True)) as run:
     data_module = get_dataset(conf)
 
     model = LitMyModuleManual(conf.data.N, conf.data.M, conf.data.K, conf.train.lr,

@@ -1,0 +1,11 @@
+lightning
+torchmetrics
+wandb
+tqdm
+hydra-core
+matplotlib
+pandas
+plotly
+ray[default]
+scikit-learn
+scipy

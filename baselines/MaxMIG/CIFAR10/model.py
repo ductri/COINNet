@@ -8,6 +8,9 @@ from helpers.model import ResNet34
 from .common import Config
 from .data import expert_tmatrix
 
+from my_lit_model import get_backbone
+from .. import global_conf
+
 torch.cuda.set_device(Config.device_id)
 priori_fixed = torch.FloatTensor([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1])
 
@@ -16,7 +19,7 @@ class VGG(nn.Module):
     """
     the common architecture for the left model
     """
-    def __init__(self, vgg_name):
+    def __init__(self, vgg_name, conf):
         super(VGG, self).__init__()
 
         # self.cfg = {
@@ -28,7 +31,8 @@ class VGG(nn.Module):
         # }
         # self.features = self._make_layers(self.cfg[vgg_name])
         # self.classifier = nn.Linear(512, 10)
-        self.classifier = ResNet34(Config.num_classes)
+        # self.classifier = ResNet34(Config.num_classes)
+        self.classifier = get_backbone(conf)
 
 
     def forward(self, x):
@@ -159,8 +163,7 @@ class right_neural_net(nn.Module):
 # net_dn = left_neural_net_dn().cuda()
 # left_model_agg = VGG('VGG16').cuda()
 # right_model_agg = right_neural_net(priori_fixed).cuda()
-
-left_model_mig = VGG('VGG16').cuda()
+left_model_mig = VGG('VGG16', global_conf.conf).cuda()
 right_model_mig = right_neural_net(priori_fixed).cuda()
 # left_model_mig = NeuralNet(my_config['input_size'], my_config['hidden_size'], my_config['num_classes']).cuda()
 

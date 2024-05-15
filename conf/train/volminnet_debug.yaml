@@ -1,0 +1,6 @@
+lr: 1e-4
+batch_size: 512
+num_epochs: 2
+lam: 1e-3
+name: volminnet
+

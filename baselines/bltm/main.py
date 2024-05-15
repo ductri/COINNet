@@ -344,7 +344,7 @@ def super_main(conf, unique_name):
         # if args.dataset == 'svhn':
         #     classifier = resnet.ResNet34(10).cuda()
         if args.dataset == 'cifar10':
-            classifier = resnet.ResNet34(conf.data.K).cuda()
+            classifier = resnet.ResNet34(conf.data.K, conf).cuda()
         else:
             raise Exception('blabla')
 

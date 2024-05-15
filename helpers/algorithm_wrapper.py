@@ -2,7 +2,6 @@ from __future__ import division
 import numpy as np
 import torch
 import torch.optim as optim
-import logging
 import torch.nn.functional as F
 from helpers.functions import *
 from helpers.model import *

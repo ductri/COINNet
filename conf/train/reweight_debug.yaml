@@ -1,0 +1,5 @@
+batch_size: 512
+num_epochs: 2
+num_estimate_epochs: 2
+name: reweight
+

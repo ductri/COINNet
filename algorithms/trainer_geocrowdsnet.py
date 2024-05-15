@@ -2,7 +2,6 @@ from __future__ import division
 import numpy as np
 import torch
 import torch.optim as optim
-import logging
 import torch.nn.functional as F
 from helpers.functions import *
 from helpers.model import *
@@ -133,7 +132,7 @@ def train_val(args,alg_options,logger):
     #     logger.info('Incorrect choice for dataset')
 
     A_init=[]
-    model_f = CrowdNetwork(args,A_init)
+    model_f = CrowdNetwork(args,A_init, alg_options['conf'])
     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
     scheduler_f = optim.lr_scheduler.OneCycleLR(optimizer_f, args.learning_rate, epochs=args.n_epoch, steps_per_epoch=len(train_loader))
 

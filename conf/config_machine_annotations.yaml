@@ -1,8 +1,8 @@
-# bad: crisp-plasma-491
-# decent: 
-# good: 
-codenames: ["serene-wind-528", "magic-pyramid-358"]
-epochs: ["19", "09"]
-filename: cifar10_machine_annotations_knn_nn_nn_2.pkl
+base_dataset: stl10
+codenames: ["unique-glitter-1284", "unique-glitter-1284", "unique-glitter-1284"]
+epochs: ["epoch=34-step=350.ckpt","epoch=39-step=400.ckpt",  "epoch=29-step=300.ckpt"]
+tradition_method_filenames: []
+filename: stl10_3.pkl
 root: "."
+num_classes: 10
 

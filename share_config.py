@@ -90,6 +90,7 @@ def shahana_default_setting(config):
     # Inject my settings
     args=parser.parse_args([])
     args.M = config.data.M
+    args.l = config.data.M
     args.N = config.data.N
     args.K = config.data.K
     args.dataset = config.data.dataset

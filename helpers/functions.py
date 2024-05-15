@@ -1,10 +1,9 @@
 from __future__ import division
 #import mxnet as mx
 import numpy as np
-import logging,os
 import copy
 import urllib
-import logging,os,sys
+import os,sys
 from scipy import stats
 from random import shuffle
 from torch.nn import functional as F

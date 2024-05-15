@@ -1,8 +1,9 @@
 defaults:
-  - data: cifar10_machine_6
+  - data: fmnist_machine_1
   - train: our_reg
 
 tags: ['our_reg']
 root: "."
 debug: False
 with_ray: False
+

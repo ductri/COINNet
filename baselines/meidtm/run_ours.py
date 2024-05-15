@@ -42,6 +42,7 @@ def super_main(conf, unique_name):
 
     args = parser.parse_args([])
     args.save_dir = f'{conf.method_dir}/save_dir/{unique_name}/'
+    args.lr = conf.train.lr
     # np.set_printoptions(precision=2,suppress=True)
 
     torch.backends.cudnn.benchmark = True
@@ -271,15 +272,16 @@ def super_main(conf, unique_name):
 
 
         if args.dataset == 'cifar10':
-            args.n_epoch = 50
+            args.n_epoch = conf.train.num_epochs
             args.warmup_epoch = 10
-            args.num_classes = 10
+            args.num_classes = conf.data.K
             milestones = [30,45]
 
             train_data = data_load.cifar10_dataset(conf, True, transform=transform_train(args.dataset), target_transform=transform_target, noise_rate=args.noise_rate, random_seed=args.seed, noise_type=args.noise_type, anchor=args.anchor)
             test_data = data_load.cifar10_test_dataset(conf, transform=transform_test(args.dataset), target_transform=transform_target)
 
-            model = ResNet34(args.num_classes)
+            # model = ResNet34(args.num_classes)
+            model = InjectedModel(conf)
             trans = sig_t(device, args.num_classes,args.batch_size)
             optimizer_trans = optim.SGD(trans.parameters(), lr=args.lr/2, weight_decay=0)
 

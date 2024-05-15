@@ -11,6 +11,7 @@ from helpers.vgg import *
 from torchvision import transforms
 from algorithms.functional_conal import *
 from algorithms.common_maxmig import *
+from my_lit_model import get_backbone
 
 
 class FCNN(nn.Module):
@@ -67,26 +68,27 @@ class confusion_matrix_layer(nn.Module):
         return(y)
 
 class CrowdLayer(nn.Module):
-    def __init__(self,input_dim,M,K,fnet_type):
+    def __init__(self,input_dim,M,K,fnet_type, conf):
         super(CrowdLayer,self).__init__()
-        if fnet_type=='fcnn_dropout':
-            self.fnet = FCNN_Dropout(input_dim,K)
-        elif fnet_type=='lenet':
-            self.fnet = Lenet()
-        elif fnet_type=='fcnn_dropout_batchnorm':
-            self.fnet = FCNN_Dropout_BatchNorm(input_dim,K)
-        elif fnet_type=='linear':
-            self.fnet = LinearClassifier(input_dim,K)
-        elif fnet_type=='resnet9':
-            self.fnet = ResNet9(K)
-        elif fnet_type=='resnet18':
-            self.fnet = ResNet18(K)
-        elif fnet_type=='resnet18f':
-            self.fnet = ResNet18_F(K)
-        elif fnet_type=='resnet34':
-            self.fnet = ResNet34(K)
-        else:
-            self.fnet = FCNN_Dropout()
+        # if fnet_type=='fcnn_dropout':
+        #     self.fnet = FCNN_Dropout(input_dim,K)
+        # elif fnet_type=='lenet':
+        #     self.fnet = Lenet()
+        # elif fnet_type=='fcnn_dropout_batchnorm':
+        #     self.fnet = FCNN_Dropout_BatchNorm(input_dim,K)
+        # elif fnet_type=='linear':
+        #     self.fnet = LinearClassifier(input_dim,K)
+        # elif fnet_type=='resnet9':
+        #     self.fnet = ResNet9(K)
+        # elif fnet_type=='resnet18':
+        #     self.fnet = ResNet18(K)
+        # elif fnet_type=='resnet18f':
+        #     self.fnet = ResNet18_F(K)
+        # elif fnet_type=='resnet34':
+        #     self.fnet = ResNet34(K)
+        # else:
+        #     self.fnet = FCNN_Dropout()
+        self.fnet = get_backbone(conf)
         self.A = nn.Parameter(torch.stack([torch.eye(K, K) for _ in range(M)]), requires_grad=True)
     def forward(self,x):
         x,g = self.fnet(x)
@@ -96,31 +98,33 @@ class CrowdLayer(nn.Module):
 
 
 class CrowdNetwork(nn.Module):
-    def __init__(self,args,A_init):
+    def __init__(self,args,A_init, conf):
         input_dim=args.R
         fnet_type=args.classifier_NN
         init_method=args.proposed_init_type
         M=args.M
         K=args.K
         super(CrowdNetwork,self).__init__()
-        if fnet_type=='fcnn_dropout':
-            self.fnet = FCNN_Dropout(input_dim,K)
-        elif fnet_type=='lenet':
-            self.fnet = Lenet()
-        elif fnet_type=='fcnn_dropout_batchnorm':
-            self.fnet = FCNN_Dropout_BatchNorm(input_dim,K)
-        elif fnet_type=='linear':
-            self.fnet = LinearClassifier(input_dim,K)
-        elif fnet_type=='resnet9':
-            self.fnet = ResNet9(K)
-        elif fnet_type=='resnet18f':
-            self.fnet = ResNet18_F(K)
-        elif fnet_type=='resnet18':
-            self.fnet = ResNet18(K)
-        elif fnet_type=='resnet34':
-            self.fnet = ResNet34(K)
-        else:
-            self.fnet = FCNN_Dropout()
+        # if fnet_type=='fcnn_dropout':
+        #     self.fnet = FCNN_Dropout(input_dim,K)
+        # elif fnet_type=='lenet':
+        #     self.fnet = Lenet()
+        # elif fnet_type=='fcnn_dropout_batchnorm':
+        #     self.fnet = FCNN_Dropout_BatchNorm(input_dim,K)
+        # elif fnet_type=='linear':
+        #     self.fnet = LinearClassifier(input_dim,K)
+        # elif fnet_type=='resnet9':
+        #     self.fnet = ResNet9(K)
+        # elif fnet_type=='resnet18f':
+        #     self.fnet = ResNet18_F(K)
+        # elif fnet_type=='resnet18':
+        #     self.fnet = ResNet18(K)
+        # elif fnet_type=='resnet34':
+        #     self.fnet = ResNet34(K)
+        # else:
+        #     self.fnet = FCNN_Dropout()
+        self.fnet = get_backbone(conf)
+
         if init_method=='close_to_identity':
             self.P = nn.Parameter(torch.stack([6*torch.eye(K)-5 for _ in range(M)]), requires_grad=True)
         elif init_method=='mle_based':

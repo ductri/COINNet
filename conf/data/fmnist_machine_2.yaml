@@ -1,0 +1,6 @@
+N: 57000
+M: 3
+K: 10
+dataset: fmnist_machine
+filename: fmnist_nn_regr_gaus.pkl
+

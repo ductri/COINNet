@@ -18,13 +18,9 @@ module load cuda/12.2
 source ../venvs/pytorch12/bin/activate
 
 # This is the main command
-python src/my_training.py with_ray=False data=cifar10n train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.lam1=1e-3 train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.lam1=1e-3 train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.lam1=1e-3 train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.lam1=1e-4 train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.lam1=1e-4 train.num_epochs=200;
-python src/my_training.py with_ray=False data=cifar10n train.lam1=1e-4 train.num_epochs=200;
+python src/my_training.py with_ray=False data=fmnist_machine_2;
+python src/my_training.py with_ray=False data=fmnist_machine_3;
+python src/my_training.py with_ray=False data=fmnist_machine_2;
+python src/my_training.py with_ray=False data=fmnist_machine_3;
 echo "done"
 

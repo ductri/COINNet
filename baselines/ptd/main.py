@@ -670,7 +670,7 @@ def super_main(conf, unique_name):
         # if args.dataset == 'svhn':
         #     clf1 = resnet.ResNet34(10)
 
-        clf1 = resnet.ResNet34(10)
+        clf1 = resnet.ResNet34(10, conf)
         clf1.cuda()
         optimizer = torch.optim.SGD(clf1.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 

@@ -1,8 +1,8 @@
 import torch
 import torch.nn.functional as F
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100
 from torchvision.transforms import v2
-from torch.utils.data import random_split, DataLoader, Dataset
+from torch.utils.data import random_split, DataLoader, Dataset, Subset
 from torch import nn, optim
 from torch.nn import CrossEntropyLoss
 from torchmetrics import Accuracy
@@ -104,18 +104,70 @@ class LitCIFAR10(L.LightningDataModule):
         # Used to clean-up when the run is finished
         ...
 
+class LitCIFAR100(L.LightningDataModule):
+    def __init__(self, batch_size: int, root='/scratch/tri/datasets'):
+        super().__init__()
+
+        self.transform_train = v2.Compose([
+            v2.RandomCrop(32, padding=4),
+            v2.RandomHorizontalFlip(),
+            v2.ToTensor(),
+            v2.Normalize((0.4914, 0.4822, 0.4465),(0.2023, 0.1994, 0.2010)),
+            ])
+        self.transform_val = v2.Compose([
+            v2.ToTensor(),
+            v2.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+        self.transform_pred = v2.Compose([
+            v2.ToTensor(),
+            v2.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            ])
+
+        self.batch_size = batch_size
+        self.root = root
+
+        dataset = CIFAR100(f'{self.root}/../datasets/', train=True, transform=self.transform_train, download=True)
+        train_inds, val_inds = random_split(range(len(dataset)), [0.9, 0.1])
+        dataset = CIFAR100(f'{self.root}/../datasets/', train=True, transform=self.transform_val, download=True)
+        self.train_set, self.val_set = Subset(dataset, train_inds), Subset(dataset, val_inds)
+
+    def prepare(self):
+        pass
+
+    def setup(self, stage:str=''):
+        if stage == 'fit':
+            print(f'train size: {len(self.train_set)}, val size: {len(self.val_set)}')
+        elif stage == 'test':
+            # self.test_set = CIFAR10(f'{self.root}/../datasets/', train=False, transform=self.transform_val)
+            self.test_set = CIFAR100(f'{self.root}/../datasets/', train=True, transform=self.transform_pred)
+            print(f'test size: {len(self.test_set)}')
+        print('Done SETTING data module for CIFAR100!')
+
+    def train_dataloader(self):
+        return DataLoader(self.train_set, batch_size=self.batch_size, num_workers=4, shuffle=True)
+
+    def val_dataloader(self):
+        return DataLoader(self.val_set, batch_size=self.batch_size, num_workers=3)
+
+    def test_dataloader(self):
+        return DataLoader(self.test_set, batch_size=self.batch_size, num_workers=3)
+
+    def teardown(self, stage: str):
+        # Used to clean-up when the run is finished
+        ...
 
 class LitMyModule(L.LightningModule):
-    def __init__(self, lr, num_epochs, batch_size):
+    def __init__(self, lr, num_epochs, batch_size, K=10):
         super().__init__()
         self.lr = lr
         self.num_epochs = num_epochs
         self.batch_size = batch_size
 
-        self.f = ResNet(BasicBlock, [3,4,6,3], 10)
+        self.f = ResNet(BasicBlock, [3,4,6,3], K)
         self.loss = nn.CrossEntropyLoss()
-        self.accuracy_metric = Accuracy(task='multiclass', num_classes=10)
-        self.train_accuracy = Accuracy(task='multiclass', num_classes=10)
+        self.val_accuracy = Accuracy(task='multiclass', num_classes=K)
+        self.train_accuracy = Accuracy(task='multiclass', num_classes=K)
+        self.test_accuracy = Accuracy(task='multiclass', num_classes=K)
         # self.machine_labels = []
         # self.true_labels = []
 
@@ -124,9 +176,8 @@ class LitMyModule(L.LightningModule):
 
         m = self.f(x.float())
         cross_entropy_loss = self.loss(m, y)
-        self.train_accuracy.update(preds=torch.argmax(m, 1), target=y)
-        self.log_dict({'train/loss': cross_entropy_loss.item(),
-            'train/acc' : self.train_accuracy})
+        self.train_accuracy(preds=torch.argmax(m, 1), target=y)
+        self.log_dict({'train/loss': cross_entropy_loss.item(), 'train/acc': self.train_accuracy}, on_step=False, on_epoch=True)
 
         return cross_entropy_loss
 
@@ -135,18 +186,16 @@ class LitMyModule(L.LightningModule):
 
         pred = self.f(X)
         pred = torch.argmax(pred, 1)
-        self.accuracy_metric.update(preds=pred, target=y)
-        self.log("valid/acc", self.accuracy_metric, on_step=False, on_epoch=True)
+        self.val_accuracy(preds=pred, target=y)
+        self.log("valid/acc", self.val_accuracy, on_step=False, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
         X, y = batch
 
         pred = self.f(X)
         pred = torch.argmax(pred, 1)
-        self.accuracy_metric.update(preds=pred, target=y)
-        self.log("test/acc", self.accuracy_metric, on_step=False, on_epoch=True)
-        # self.machine_labels.append(pred.cpu().numpy())
-        # self.true_labels.append(y.cpu().numpy())
+        self.test_accuracy(preds=pred, target=y)
+        self.log("test/acc", self.test_accuracy, on_step=False, on_epoch=True)
 
     def forward(self, x):
         return torch.argmax(self.f(x), 1)
@@ -159,7 +208,7 @@ class LitMyModule(L.LightningModule):
         optimizer_f = optim.Adam(self.f.parameters(), lr=self.lr, weight_decay=1e-4)
         scheduler_f = optim.lr_scheduler.OneCycleLR(optimizer_f, self.lr,
                 epochs=self.num_epochs,
-                steps_per_epoch=int(47500/self.batch_size))
+                steps_per_epoch=int(45000/self.batch_size))
         return [optimizer_f], [scheduler_f]
 
 
@@ -170,8 +219,8 @@ def main():
         # Some config
         num_epochs = 20
 
-        data_module = LitCIFAR10(batch_size=512, root=constants.ROOT)
-        my_module = LitMyModule(lr=1e-2, num_epochs=num_epochs, batch_size=512)
+        data_module = LitCIFAR100(batch_size=512, root='.')
+        my_module = LitMyModule(lr=1e-2, num_epochs=num_epochs, batch_size=512, K=100)
         wandb_logger = WandbLogger(log_model=False, project=project_name, save_dir='./wandb_loggings/')
 
         checkpoint_callback = ModelCheckpoint(dirpath=f'./lightning_saved_models/machine_annotator/{run.name}/',
@@ -185,6 +234,10 @@ def main():
         trainer.fit(model=my_module, datamodule=data_module)
         print(f'Checkpoint is saved at {checkpoint_callback.best_model_path}')
 
+        model = LitMyModule.load_from_checkpoint(checkpoint_callback.best_model_path,
+                lr=1e-2, num_epochs=num_epochs, batch_size=512, K=100)
+        # predict with the model
+        trainer.test(model=model, datamodule=data_module)
 
 if __name__ == "__main__":
     main()

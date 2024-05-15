@@ -1,0 +1,6 @@
+N: 5000
+M: 3
+K: 10
+dataset: stl10_machine
+filename: stl10_1.pkl
+

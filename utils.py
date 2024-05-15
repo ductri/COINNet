@@ -24,15 +24,21 @@ def plot_confusion_matrix(A):
     assert A.ndim == 3
     M = A.shape[0]
     fig, axs = plt.subplots(1, M, figsize=(20, 6), dpi=80)
-    for m in range(M):
-        im = axs[m].imshow(A[m])
-        # Loop over data dimensions and create text annotations.
-        for (j, i), label in np.ndenumerate(A[m]):
-            axs[m].text(i,j,f'{label:.3f}',ha='center',va='center')
-        plt.colorbar(im, ax=axs[m])
-        # for i in range(A.shape[0]):
-        #     for j in range(A.shape[1]):
-        #         text = axs[m].text(j, i, A[m, i, j], ha="center", va="center", color="w")
+    if M == 1:
+        im = axs.imshow(A[0])
+        for (j, i), label in np.ndenumerate(A[0]):
+            axs.text(i,j,f'{label:.3f}',ha='center',va='center')
+        plt.colorbar(im, ax=axs)
+    else:
+        for m in range(M):
+            im = axs[m].imshow(A[m])
+            # Loop over data dimensions and create text annotations.
+            for (j, i), label in np.ndenumerate(A[m]):
+                axs[m].text(i,j,f'{label:.3f}',ha='center',va='center')
+            plt.colorbar(im, ax=axs[m])
+            # for i in range(A.shape[0]):
+            #     for j in range(A.shape[1]):
+            #         text = axs[m].text(j, i, A[m, i, j], ha="center", va="center", color="w")
     plt.tight_layout()
     return fig
 

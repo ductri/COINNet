@@ -95,7 +95,7 @@ def train_val(args,alg_options,logger):
     # else:
     #     logger.info('Incorrect choice for dataset')
 
-    model_f = CrowdLayer(args.R,args.M,args.K,args.classifier_NN)
+    model_f = CrowdLayer(args.R,args.M,args.K,args.classifier_NN, alg_options['conf'])
     optimizer_f = optim.Adam(model_f.parameters(), lr=args.learning_rate, weight_decay=1e-4)
     scheduler_f = optim.lr_scheduler.OneCycleLR(optimizer_f, args.learning_rate, epochs=args.n_epoch, steps_per_epoch=len(train_loader))
     if torch.cuda.is_available:

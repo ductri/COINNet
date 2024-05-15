@@ -3,8 +3,8 @@ from collections import Counter
 import torch
 import numpy as np
 from torch.utils.data import random_split, DataLoader, Dataset, Subset
-from my_dataset import MajorityVotingDataset, DecoratedDataset
-import my_dataset_renew as my_dataset
+# import my_dataset_renew as my_dataset
+import my_dataset
 
 
 

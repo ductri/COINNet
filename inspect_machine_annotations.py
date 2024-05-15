@@ -3,7 +3,7 @@ import pickle as pkl
 def inspect(filename):
     with open(filename, 'rb') as i_f:
         annotations = pkl.load(i_f)
-    print(f'Annotations {filename} by machine annotators on CIFAR10 train set, {annotations["machine_labels"].shape[0]} images')
+    print(f'Annotations {filename} by machine annotators on {annotations["machine_labels"].shape[0]} images')
     for i in range(annotations['machine_labels'].shape[1]):
         acc = (1.*(annotations['machine_labels'][:, i] == annotations['true_labels'])).mean()
         print(f'Annotator {i+1} acc: {acc}')

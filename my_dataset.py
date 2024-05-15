@@ -17,7 +17,7 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from torchmetrics.clustering import CompletenessScore
 import wandb
-from torchvision.datasets import CIFAR10
+from torchvision.datasets import CIFAR10, CIFAR100, FashionMNIST, STL10
 from torchvision.transforms import v2
 from torch.utils.data import random_split, DataLoader, Dataset, Subset
 from omegaconf import DictConfig
@@ -62,9 +62,9 @@ class FakeLogger:
         print(s)
 
 class CIFAR10N(Dataset):
-    def __init__(self, cifar10_clean_ds, correspond_indices):
+    def __init__(self, cifar10_clean_ds, correspond_indices, root='.'):
         super().__init__()
-        noise_file = torch.load('./data/cifar10n/CIFAR-10_human.pt')
+        noise_file = torch.load(f'{root}/data/cifar10n/CIFAR-10_human.pt')
         self.clean_label = noise_file['clean_label']
         worst_label = noise_file['worse_label']
         aggre_label = noise_file['aggre_label']
@@ -131,19 +131,58 @@ def preprare_cifar10_transforms():
         ])
     return transform_train, transform_val, transform_pred
 
+def prepare_fmnist_transform():
+    transform = v2.Compose([v2.ToTensor(), v2.Normalize((0.5,), (0.5,))])
+    return transform
+def prepare_stl10_transform():
+    means = [1.7776489e-07, -3.6621095e-08, -9.346008e-09]
+    stds = [1.0, 1.0, 1.0]
+    stats = (means, stds)
+
+    train_transform = v2.Compose([
+        v2.RandomHorizontalFlip(p=0.5),
+        v2.RandomVerticalFlip(p=0.5),
+        v2.ToTensor(),
+        v2.Normalize(*stats,inplace=True)
+    ])
+    test_transform = v2.Compose([
+        v2.ToTensor(),
+        v2.Normalize(*stats,inplace=True)
+    ])
+    return train_transform, test_transform
+
 def get_cifar10_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
     ds = CIFAR10(dataset_root, train=True, transform=transform_train)
+    return ds
+def get_cifar100_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
+    ds = CIFAR100(dataset_root, train=True, transform=transform_train)
+    return ds
+def get_stl10_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
+    ds = STL10(dataset_root, split='train', transform=transform_train)
     return ds
 
 def get_cifar10_test(dataset_root='./../datasets/', transform_test=None) -> Dataset:
     ds = CIFAR10(dataset_root, train=False, transform=transform_test)
+    return ds
+def get_cifar100_test(dataset_root='./../datasets/', transform_test=None) -> Dataset:
+    ds = CIFAR100(dataset_root, train=False, transform=transform_test)
+    return ds
+def get_stl10_test(dataset_root='./../datasets/', transform_test=None) -> Dataset:
+    ds = STL10(dataset_root, split='test', transform=transform_test)
+    return ds
+
+def get_fmnist_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
+    ds = FashionMNIST(dataset_root, train=True, transform=transform_train)
+    return ds
+def get_fmnist_test(dataset_root='./../datasets/', transform=None) -> Dataset:
+    ds = FashionMNIST(dataset_root, train=False, transform=transform)
     return ds
 
 def load_machine_labels(path_to_annotations):
     with open(path_to_annotations, 'rb') as i_f:
         data = pkl.load(i_f)
     annotations = data
-    print(f'Annotations by machine annotators on CIFAR10 train set, {annotations["machine_labels"].shape[0]} images')
+    print(f'Annotations by machine annotators on train set, {annotations["machine_labels"].shape[0]} images')
     for i in range(annotations['machine_labels'].shape[1]):
         acc = (1.*(annotations['machine_labels'][:, i] == annotations['true_labels'])).mean()
         print(f'Annotator {i+1} acc: {acc}')
@@ -163,6 +202,20 @@ def split_train_val(ds: Dataset, train_prop=0.95):
     val_ds = Subset(ds, val_indices)
     return train_ds, val_ds, train_indices, val_indices
 
+class AddingField(Dataset):
+    def __init__(self, ds, new_labels, after_ind):
+        assert len(ds) == len(new_labels)
+        self.ds = ds
+        self.new_labels = new_labels
+        self.after_ind = after_ind
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        item = self.ds[idx]
+        return item[:self.after_ind+1] + (self.new_labels[idx],) +\
+                item[self.after_ind+1:]
 
 class ReplacingLabel(Dataset):
     def __init__(self, ds, new_labels):
@@ -177,6 +230,17 @@ class ReplacingLabel(Dataset):
         data, label = self.ds[idx]
         return data, self.new_labels[idx]
 
+class UnifiedDataset(Dataset):
+    def __init__(self, ds):
+        self.ds = ds
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, ind):
+        item = self.ds[ind]
+        assert len(item)>= 2
+        return item[0], item[1], item[2:]
 
 class DecoratedDataset(Dataset):
     def __init__(self, ds):
@@ -216,6 +280,7 @@ class LitDataset(L.LightningDataModule):
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
         self.batch_size = batch_size
+        print(f'train size: {len(self.train_dataset)}, val size:  {len(self.val_dataset)}, test size: {len(self.test_dataset)}')
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size,
@@ -228,6 +293,10 @@ class LitDataset(L.LightningDataModule):
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size,
                 num_workers=3)
+
+    def predict_dataloader(self):
+        return DataLoader(self.train_dataset, batch_size=self.batch_size,
+                num_workers=3, shuffle=False)
 
 
 class CIFAR10ShahanaModule(L.LightningDataModule):
@@ -315,7 +384,7 @@ class LitFmnistShahanaModule(L.LightningDataModule):
 
 
 class LitCIFAR10N(L.LightningDataModule):
-    def __init__(self, batch_size: int):
+    def __init__(self, batch_size: int, root='./../datasets/'):
         super().__init__()
 
         self.transform_train = v2.Compose([
@@ -335,27 +404,29 @@ class LitCIFAR10N(L.LightningDataModule):
         self.train_indices, self.val_indices = random_split(range(50000), [0.95, 0.05], generator=self.generator)
 
         self.batch_size = batch_size
+        self.root = root
 
     def prepare(self):
         pass
 
     def setup(self, stage:str=''):
         if stage == 'fit':
-            clean_train_set = Subset(CIFAR10('./../datasets/', train=True, transform=self.transform_train), self.train_indices)
-            clean_val_set = Subset(CIFAR10('./../datasets/', train=True, transform=self.transform_val), self.val_indices)
+            clean_train_set = Subset(CIFAR10(f'{self.root}/../datasets/', train=True, transform=self.transform_train), self.train_indices)
+            clean_val_set = Subset(CIFAR10(f'{self.root}/../datasets/', train=True, transform=self.transform_val), self.val_indices)
 
-            self.train_set = CIFAR10N(clean_train_set, self.train_indices)
+            self.train_set = CIFAR10N(clean_train_set, self.train_indices, self.root)
             self.val_set = clean_val_set
             # self.data_train, self.data_val = random_split(dataset, [0.7, 0.3], generator)
             print(f'train size: {len(self.train_set)}, val size: {len(self.val_set)}')
 
         elif stage == 'test':
-            self.test_set = CIFAR10('./../datasets/', train=False, transform=self.transform_val)
+            self.test_set = CIFAR10(f'{self.root}/../datasets/', train=False, transform=self.transform_val)
             print(f'test size: {len(self.test_set)}')
         elif stage == 'pred':
-            clean_train_set = Subset(CIFAR10('./../datasets/', train=True, transform=self.transform_pred), self.train_indices)
+            clean_train_set = Subset(CIFAR10(f'{self.root}/../datasets/', train=True, transform=self.transform_pred), self.train_indices)
 
-            self.train_set = CIFAR10N(clean_train_set, self.train_indices)
+            # self.train_set = CIFAR10N(clean_train_set, self.train_indices, self.root)
+            self.train_set = clean_train_set
         print('Done SETTING data module for CIFAR10-N!')
 
     def train_dataloader(self):
@@ -478,6 +549,42 @@ class LitFakeSynCIFAR10(L.LightningDataModule):
         return DataLoader(self.data_test, batch_size=self.batch_size, num_workers=3)
 
 
+class LabelMeTrainDataset(Dataset):
+    def __init__(self, data_root='./data/'):
+        self.data = np.load(f'{data_root}/LabelMe/data_train_vgg16.npy')
+        self.labels = np.load(f'{data_root}/LabelMe/labels_train.npy')
+        self.annotations = np.load('data/LabelMe/answers.npy').astype(int)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, ind):
+        return self.data[ind], self.annotations[ind], self.labels[ind]
+
+class LabelMeValDataset(Dataset):
+    def __init__(self, data_root='./data/'):
+        self.data = np.load(f'{data_root}/LabelMe/data_valid_vgg16.npy')
+        self.labels = np.load(f'{data_root}/LabelMe/labels_valid.npy')
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, ind):
+        return self.data[ind], self.labels[ind]
+
+class LabelMeTestDataset(Dataset):
+    def __init__(self, data_root='./data/'):
+        self.test_data = np.load(f'{data_root}/LabelMe/data_test_vgg16.npy')
+        self.test_labels= np.load(f'{data_root}/LabelMe/labels_test.npy')
+
+    def __len__(self):
+        return len(self.test_data)
+
+    def __getitem__(self, ind):
+        return self.test_data[ind], self.test_labels[ind]
+
+
+
 
 def get_dataset(conf) -> LitDataset:
     if conf.data.dataset == 'cifar10':
@@ -488,10 +595,9 @@ def get_dataset(conf) -> LitDataset:
         data_module = LitDataset(train_dataset, val_dataset, test_dataset,
                 conf.train.batch_size)
     elif conf.data.dataset == 'cifar10n':
-        data_module = LitCIFAR10N(conf.train.batch_size)
-    elif conf.data.dataset == 'cifar10_machine':
-        # data_module = LitCIFAR10MachineAnnotations(conf.train.batch_size, root=conf.root, filename=conf.data.filename)
-        print('loading dataset using new code')
+        data_module = LitCIFAR10N(conf.train.batch_size, f'{conf.root}/../datasets/')
+    elif conf.data.dataset == 'cifar10_machine' and conf.train.name not in ['meidtm', 'bltm']:
+        print('loading normal cifar10 machine dataset')
         train_transform, _, test_transform = preprare_cifar10_transforms()
         original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', train_transform)
         machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
@@ -502,8 +608,84 @@ def get_dataset(conf) -> LitDataset:
         test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
         data_module = LitDataset(train_dataset, val_dataset, test_dataset,
                 conf.train.batch_size)
-    elif conf.data.dataset == 'fmnist':
+    elif conf.data.dataset == 'cifar10_machine' and conf.train.name in ['meidtm', 'bltm']:
+        print('loading the new unified cifar10 machine dataset')
+        train_transform, _, test_transform = preprare_cifar10_transforms()
+        original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+        train_dataset, _, train_inds, val_inds = split_train_val(machine_train_dataset, train_prop=0.95)
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        # fields: image, annotations, (ind, label)
+        train_dataset = UnifiedDataset(train_dataset)
+
+        val_dataset = Subset(original_train_dataset, val_inds)
+        test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
+    # elif conf.data.dataset == 'cifar10n_pred':
+    #     train_transform, _, test_transform = preprare_cifar10_transforms()
+    #     original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', v2.ToTensor())
+    #     train_dataset, _, _, _ = split_train_val(original_train_dataset, train_prop=0.95)
+    #     data_module = LitDataset(train_dataset, [], [], conf.train.batch_size)
+    elif conf.data.dataset == 'cifar100_machine':
+        print('loading dataset using new code')
+        train_transform, _, test_transform = preprare_cifar10_transforms()
+        original_train_dataset = get_cifar100_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = ReplacingLabel(original_train_dataset, machine_labels)
+        train_dataset, _, train_inds, val_inds = split_train_val(machine_train_dataset, train_prop=0.95)
+        train_dataset = DecoratedDataset(train_dataset)
+        val_dataset = Subset(original_train_dataset, val_inds)
+        test_dataset = get_cifar100_test(f'{conf.root}/../datasets', test_transform)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
+    elif conf.data.dataset == 'fmnist_syn':
         data_module = LitFmnistShahanaModule(conf)
+    elif conf.data.dataset == 'fmnist_machine':
+        print('loading FashionMNIST dataset')
+        transform = prepare_fmnist_transform()
+        original_train_dataset = get_fmnist_train(f'{conf.root}/../datasets', transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = ReplacingLabel(original_train_dataset, machine_labels)
+        train_dataset, _, train_inds, val_inds = split_train_val(machine_train_dataset, train_prop=0.95)
+        train_dataset = DecoratedDataset(train_dataset)
+        val_dataset = Subset(original_train_dataset, val_inds)
+        test_dataset = get_fmnist_test(f'{conf.root}/../datasets', transform)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'stl10_machine' and conf.train.name not in ['meidtm', 'bltm']:
+        print('Loading STL10 dataset')
+        train_transform, test_transform = prepare_stl10_transform()
+        original_train_dataset = get_stl10_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = ReplacingLabel(original_train_dataset, machine_labels)
+        train_dataset = DecoratedDataset(machine_train_dataset)
+
+        test_dataset = get_stl10_test(f'{conf.root}/../datasets', test_transform)
+        test_dataset, val_dataset, _, _ = split_train_val(test_dataset, train_prop=0.8)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'stl10_machine' and conf.train.name in ['meidtm', 'bltm']:
+        print('Loading STL10 dataset in a new unified dataset')
+        train_transform, test_transform = prepare_stl10_transform()
+        original_train_dataset = get_stl10_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        # machine_train_dataset = ReplacingLabel(original_train_dataset, machine_labels)
+        machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+        machine_train_dataset = AddingField(machine_train_dataset, range(len(machine_train_dataset)), 1)
+        # train_dataset = DecoratedDataset(machine_train_dataset)
+        train_dataset = UnifiedDataset(machine_train_dataset)
+
+        test_dataset = get_stl10_test(f'{conf.root}/../datasets', test_transform)
+        test_dataset, val_dataset, _, _ = split_train_val(test_dataset, train_prop=0.8)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'labelme':
+        data_root = f'{conf.root}/data/'
+        train_dataset = LabelMeTrainDataset(data_root)
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        train_dataset = UnifiedDataset(train_dataset)
+        val_dataset = LabelMeValDataset(data_root)
+        test_dataset = LabelMeTestDataset(data_root)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
     else:
         raise Exception('typo in data name')
     return data_module

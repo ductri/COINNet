@@ -1,0 +1,6 @@
+N: 47500
+M: 3
+K: 100
+dataset: cifar100_machine
+filename: cifar100_3nn.pkl
+

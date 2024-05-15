@@ -6,6 +6,9 @@ from utils import *
 import random
 import time
 
+from my_lit_model import get_backbone
+
+
 class Lenet(nn.Module):
 
     def __init__(self):
@@ -200,6 +203,15 @@ def ResNet18(num_classes):
 
 def ResNet34(num_classes):
     return ResNet(BasicBlock, [3, 4, 6, 3], num_classes)
+
+class InjectedModel(nn.Module):
+    def __init__(self, conf):
+        super().__init__()
+        self.model = get_backbone(conf)
+
+    def forward(self, x):
+        probs, logits = self.model(x)
+        return probs
 
 
 def ResNet50(num_classes):

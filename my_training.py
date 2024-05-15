@@ -16,9 +16,10 @@ from torch.utils.data import random_split, DataLoader, Dataset
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from lightning.pytorch.callbacks import LearningRateMonitor
+import wandb
 
 from helpers.transformer import transform_train, transform_test, transform_target
-from my_dataset import get_dataset
+from my_dataset import get_dataset, DatasetAdapter
 from my_lit_model import LitMyModuleManual # LitMyModule,
 from utils import create_ray_wrapper, create_wandb_wrapper
 
@@ -47,8 +48,24 @@ def my_main(conf, unique_name):
     model = LitMyModuleManual.load_from_checkpoint(checkpoint_callback.best_model_path,
             N=conf.data.N, M=conf.data.M, K=conf.data.K, lr=conf.train.lr,
             lam1=conf.train.lam1, lam2=conf.train.lam2, conf=conf)
+
     # predict with the model
     trainer.test(model=model, datamodule=data_module)
+
+    if 'instance_indep_conf_type' in conf.data:
+        tmp = DataLoader(DatasetAdapter(data_module.data_train, [1, 2, 0, 7]),
+                batch_size=len(data_module.data_train), shuffle=False)
+        train_set = next(iter(tmp))
+        indep_mark = train_set[3]
+        E = model.model.get_e()
+        err = (E**2).sum((1, 2)).detach().cpu()
+        threshold, _ = torch.topk(err, int(conf.data.percent_instance_noise*err.shape[0]), sorted=True)
+        threshold = threshold[-1]
+        outlier_pred = (err < threshold)*1.0 # 0 means outliers
+        outlier_pred_acc = (~outlier_pred[~indep_mark.bool()].bool()).float().mean()
+        print(f'Outlier detection rate: {outlier_pred_acc}')
+        model_logger = model.logger.experiment
+        model_logger.summary['final_outlier_detection_rate'] = outlier_pred_acc
 
 
 

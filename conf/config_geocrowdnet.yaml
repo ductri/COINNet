@@ -1,5 +1,5 @@
 defaults:
-  - data: cifar10_machine_6
+  - data: fmnist_machine_1
   - train: geocrowdnetf
 
 root: '.'

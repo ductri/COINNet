@@ -67,7 +67,7 @@ def main(conf, unique_name):
     args.batch_size = conf.train.batch_size
 
     estimate_state = True
-    model = Resnet.ResNet34(args.num_classes)
+    model = Resnet.ResNet34(args.num_classes, conf)
 
 
     #optimizer nd StepLR

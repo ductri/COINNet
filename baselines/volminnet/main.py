@@ -107,7 +107,7 @@ def super_main(conf, unique_name):
     #     trans = sig_t(device, args.num_classes, init=args.init)
     #     optimizer_trans = optim.Adam(trans.parameters(), lr=args.lr, weight_decay=0)
 
-    model = ResNet34(args.num_classes)
+    model = ResNet34(args.num_classes, conf)
     trans = sig_t(device, args.num_classes)
     optimizer_trans = optim.Adam(trans.parameters(), lr=args.lr, weight_decay=0)
     save_dir, model_dir, matrix_dir, logs = create_dir(args)

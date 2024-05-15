@@ -228,7 +228,7 @@ def my_main(conf, unique_name):
                 alg_options['train_loader'] = data_module.train_dataloader()
                 alg_options['val_loader'] = data_module.val_dataloader()
                 alg_options['test_loader']= data_module.test_dataloader()
-
+                alg_options['conf']= conf
                 #################################Run Algorithms#######################################
                 logger.info('Starting trial '+str(t)+'.....................')
                 # fileid.write(str(t+1)+'\t')

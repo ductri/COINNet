@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from helpers.functions import *
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
-import logging
 from helpers.data_load import *
 from helpers.transformer import *
 from helpers.algorithm_wrapper import algorithmwrapperEECS
@@ -22,7 +21,13 @@ import hydra
 from omegaconf import OmegaConf
 
 from utils import create_ray_wrapper, create_wandb_wrapper
-from my_dataset import CIFAR10ShahanaModule, LitCIFAR10MachineAnnotations
+from my_dataset import CIFAR10ShahanaModule, LitCIFAR10MachineAnnotations, get_dataset
+
+from ray.util import inspect_serializability
+
+class FakeLogger:
+    def info(self, s):
+        print(s)
 
 
 def my_main(conf, unique_name):
@@ -31,7 +36,6 @@ def my_main(conf, unique_name):
     # Set arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--session_id',type=int,help='Session_ID',default=3)
-
 
     parser.add_argument('--M',type=int,help='No of annotators',default=3)
     parser.add_argument('--K',type=int,help='No of classes',default=10)
@@ -78,181 +82,164 @@ def my_main(conf, unique_name):
 
     parser.add_argument('--flag_wandb',type = int, default =1)
 
-
     # Parser
     args=parser.parse_args([])
 
-    project_name = 'shahana_outlier'
-    with wandb.init(entity='narutox', project=project_name, tags=conf.tags, config=OmegaConf.to_container(conf, resolve=True)) as run:
-        args.dataset = conf.data.dataset
+    # project_name = 'shahana_outlier'
+    # with wandb.init(entity='narutox', project=project_name, tags=conf.tags, config=OmegaConf.to_container(conf, resolve=True)) as run:
+    args.dataset = conf.data.dataset
 
-        args.batch_size = conf.train.batch_size
-        args.n_epoch = conf.train.num_epochs
-        args.lam = conf.train.lam
-        args.K = conf.data.K
-        args.N = conf.data.N
-        args.fnet_type = conf.fnet_type
-        args.classifier_NN = conf.fnet_type
-        args.vol_reg_type = conf.train.vol_reg_type
+    args.batch_size = conf.train.batch_size
+    args.n_epoch = conf.train.num_epochs
+    args.lam = conf.train.lam
+    args.K = conf.data.K
+    args.N = conf.data.N
+    args.fnet_type = conf.fnet_type
+    args.classifier_NN = conf.fnet_type
+    args.vol_reg_type = conf.train.vol_reg_type
 
-        # Setting GPU and cuda settings
-        torch.backends.cudnn.benchmark = True
-        if torch.cuda.is_available:
-            device = torch.device('cuda:'+str(args.device))
-        torch.autograd.set_detect_anomaly(True)
+    # Setting GPU and cuda settings
+    # torch.backends.cudnn.benchmark = True
+    if torch.cuda.is_available:
+        device = torch.device('cuda:'+str(args.device))
+    torch.autograd.set_detect_anomaly(True)
 
+    # Log file settings
+    time_now = datetime.now()
+    time_now.strftime("%b-%d-%Y")
+    log_file_name = args.log_folder+'log_'+str(time_now.strftime("%b-%d-%Y"))+'_synthetic_cifar10_'+str(args.session_id)+'.txt'
+    result_file=args.log_folder+'result_'+str(time_now.strftime("%b-%d-%Y"))+'_synthetic_cifar10_'+str(args.session_id)+'.txt'
 
-
-        # Log file settings
-        time_now = datetime.now()
-        time_now.strftime("%b-%d-%Y")
-        log_file_name = args.log_folder+'log_'+str(time_now.strftime("%b-%d-%Y"))+'_synthetic_cifar10_'+str(args.session_id)+'.txt'
-        result_file=args.log_folder+'result_'+str(time_now.strftime("%b-%d-%Y"))+'_synthetic_cifar10_'+str(args.session_id)+'.txt'
-
-        if os.path.exists(log_file_name):
-            os.remove(log_file_name)
-        logger = logging.getLogger()
-        logger.setLevel(logging.DEBUG)
-        # fh = logging.FileHandler(log_file_name)
-        ch = logging.StreamHandler()
-        formatter = logging.Formatter('%(message)s')
-        # fh.setFormatter(formatter)
-        ch.setFormatter(formatter)
-        # logger.addHandler(fh)
-        logger.addHandler(ch)
-
-
-        def main():
-            rng = default_rng()
-
-            #Set algorithm flags
-            # algorithms_list = ['CROWDLAYER']
-            algorithms_list = ['GEOCROWDNET']
+    # if os.path.exists(log_file_name):
+    #     os.remove(log_file_name)
+    # logger = logging.getLogger()
+    # logger.setLevel(logging.DEBUG)
+    # # fh = logging.FileHandler(log_file_name)
+    # ch = logging.StreamHandler()
+    # formatter = logging.Formatter('%(message)s')
+    # # fh.setFormatter(formatter)
+    # ch.setFormatter(formatter)
+    # # logger.addHandler(fh)
+    # logger.addHandler(ch)
+    logger = FakeLogger()
 
 
+    def main():
+        rng = default_rng()
 
+        #Set algorithm flags
+        # algorithms_list = ['CROWDLAYER']
+        algorithms_list = ['GEOCROWDNET']
 
-            # Data logging variables
-            test_acc_all = np.ones((len(algorithms_list),args.n_trials))*np.nan
-            # fileid = open(result_file,"w")
-            # fileid.write('#########################################################\n')
-            # fileid.write(str(time_now))
-            # fileid.write('\n')
-            # fileid.write('Trial#\t')
-            # for s in algorithms_list:
-            #     fileid.write(s+str('\t'))
-            # fileid.write('\n')
+        # Data logging variables
+        test_acc_all = np.ones((len(algorithms_list),args.n_trials))*np.nan
+        # fileid = open(result_file,"w")
+        # fileid.write('#########################################################\n')
+        # fileid.write(str(time_now))
+        # fileid.write('\n')
+        # fileid.write('Trial#\t')
+        # for s in algorithms_list:
+        #     fileid.write(s+str('\t'))
+        # fileid.write('\n')
 
-            annotators_sel = range(args.M)
-            alg_options = {
-                    'device':device,
-                    'loss_function_type':'cross_entropy'}
+        annotators_sel = range(args.M)
+        alg_options = {
+                'device':device,
+                'loss_function_type':'cross_entropy'}
 
-            #args.n_epoch=80
+        #args.n_epoch=80
 
-            alg_options['lamda_list']=[args.lam]
-            alg_options['mu_list']=[args.mu]
-            alg_options['learning_rate_list']=[args.learning_rate]
+        alg_options['lamda_list']=[args.lam]
+        alg_options['mu_list']=[args.mu]
+        alg_options['learning_rate_list']=[args.learning_rate]
 
+        if args.dataset=='cifar10':
+            alg_options['flag_lr_scheduler'] = True
+            alg_options['milestones'] = [30,60]
+        else:
+            alg_options['flag_lr_scheduler'] = False
+            alg_options['milestones'] = [30,60]
 
-            if args.dataset=='cifar10':
-                alg_options['flag_lr_scheduler'] = True
-                alg_options['milestones'] = [30,60]
-            else:
-                alg_options['flag_lr_scheduler'] = False
-                alg_options['milestones'] = [30,60]
+        for t in range(args.n_trials):
+            np.random.seed(t+args.seed)
+            torch.manual_seed(t+args.seed)
+            torch.cuda.manual_seed(t+args.seed)
+            random.seed(t+args.seed)
 
-            for t in range(args.n_trials):
-                np.random.seed(t+args.seed)
-                torch.manual_seed(t+args.seed)
-                torch.cuda.manual_seed(t+args.seed)
-                random.seed(t+args.seed)
+            # # Get the train, validation and test dataset
+            # train_data     = Cifar10Dataset(True, transform=transform_train(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
+            # val_data     = Cifar10Dataset(False, transform=transform_test(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
+            # test_data     = cifar10_test_dataset(transform=transform_test(args.dataset), target_transform=transform_target)
 
+            # alg_options['train_data']=train_data
+            # alg_options['A_true']=train_data.A_true
+            # alg_options['data_train']=train_data.train_data
+            # alg_options['y_train']=train_data.train_labels
+            # alg_options['data_val']=val_data.val_data
+            # alg_options['y_val']=val_data.val_labels
+            # alg_options['data_test']=test_data.test_data
+            # alg_options['y_test']=test_data.test_labels
+            # alg_options['annotations']=train_data.annotations
+            # alg_options['annotations_one_hot']=train_data.annotations_one_hot
+            # alg_options['annotator_softmax_label_mbem']=train_data.annotator_softmax_label_mbem
+            # alg_options['annotators_per_sample_mbem']=train_data.annotators_per_sample_mbem
+            # alg_options['annotations_list_maxmig']=train_data.annotations_list_maxmig
+            # alg_options['annotators_sel']=annotators_sel
+            # alg_options['annotator_mask']=train_data.annotator_mask
 
-                # # Get the train, validation and test dataset
-                # train_data     = Cifar10Dataset(True, transform=transform_train(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
-                # val_data     = Cifar10Dataset(False, transform=transform_test(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
-                # test_data     = cifar10_test_dataset(transform=transform_test(args.dataset), target_transform=transform_target)
+            #args.M = train_data.annotations.shape[1]
+            # args.N = train_data.train_labels.shape[0]
+            # args.K = 10
 
-                # alg_options['train_data']=train_data
-                # alg_options['A_true']=train_data.A_true
-                # alg_options['data_train']=train_data.train_data
-                # alg_options['y_train']=train_data.train_labels
-                # alg_options['data_val']=val_data.val_data
-                # alg_options['y_val']=val_data.val_labels
-                # alg_options['data_test']=test_data.test_data
-                # alg_options['y_test']=test_data.test_labels
-                # alg_options['annotations']=train_data.annotations
-                # alg_options['annotations_one_hot']=train_data.annotations_one_hot
-                # alg_options['annotator_softmax_label_mbem']=train_data.annotator_softmax_label_mbem
-                # alg_options['annotators_per_sample_mbem']=train_data.annotators_per_sample_mbem
-                # alg_options['annotations_list_maxmig']=train_data.annotations_list_maxmig
-                # alg_options['annotators_sel']=annotators_sel
-                # alg_options['annotator_mask']=train_data.annotator_mask
+            # Prepare data for training/validation and testing
+            # train_loader = DataLoader(dataset=train_data,
+            #         batch_size=args.batch_size,
+            #         num_workers=3,
+            #         shuffle=True,
+            #         drop_last=True,
+            #         pin_memory=True)
+            # val_loader = DataLoader(dataset=val_data,
+            #         batch_size=args.batch_size,
+            #         num_workers=3,
+            #         shuffle=False,
+            #         drop_last=True,
+            #         pin_memory=True)
+            # test_loader = DataLoader(dataset=test_data,
+            #         batch_size=args.batch_size,
+            #         num_workers=3,
+            #         shuffle=False,
+            #         drop_last=True,
+            #         pin_memory=True)
 
-                #args.M = train_data.annotations.shape[1]
-                # args.N = train_data.train_labels.shape[0]
-                # args.K = 10
+            #
+            # if conf.data.dataset == 'cifar10_machine':
+            #     data_module = LitCIFAR10MachineAnnotations(conf.train.batch_size, root=conf.root, filename=conf.data.filename)
+            # elif conf.data.dataset == 'cifar10':
+            #     data_module = CIFAR10ShahanaModule(conf)
+            #     args.percent_instance_noise = conf.data.percent_instance_noise
+            #     args.instance_indep_conf_type = conf.data.instance_indep_conf_type
+            #     args.total_noise_rate = conf.data.total_noise_rate
+            # else:
+            #     raise Exception(f'dataset typo: {conf.data.dataset}')
+            data_module = get_dataset(conf)
+            data_module.prepare_data()
+            data_module.setup('fit')
+            data_module.setup('test')
+            alg_options['train_loader'] = data_module.train_dataloader()
+            alg_options['val_loader'] = data_module.val_dataloader()
+            alg_options['test_loader']= data_module.test_dataloader()
+            alg_options['conf']= conf
 
-                # Prepare data for training/validation and testing
-                # train_loader = DataLoader(dataset=train_data,
-                #         batch_size=args.batch_size,
-                #         num_workers=3,
-                #         shuffle=True,
-                #         drop_last=True,
-                #         pin_memory=True)
-                # val_loader = DataLoader(dataset=val_data,
-                #         batch_size=args.batch_size,
-                #         num_workers=3,
-                #         shuffle=False,
-                #         drop_last=True,
-                #         pin_memory=True)
-                # test_loader = DataLoader(dataset=test_data,
-                #         batch_size=args.batch_size,
-                #         num_workers=3,
-                #         shuffle=False,
-                #         drop_last=True,
-                #         pin_memory=True)
+            #################################Run Algorithms#######################################
+            logger.info('Starting trial '+str(t)+'.....................')
+            for k in range(len(algorithms_list)):
+                logger.info('Running '+algorithms_list[k])
+                alg_options['method']=algorithms_list[k]
+                test_acc=algorithmwrapperEECS(args,alg_options,logger)
+                test_acc_all[k,t]=test_acc*100
+                wandb.summary['test_acc'] = test_acc
 
-
-                if conf.data.dataset == 'cifar10_machine':
-                    data_module = LitCIFAR10MachineAnnotations(conf.train.batch_size, root=conf.root, filename=conf.data.filename)
-                elif conf.data.dataset == 'cifar10':
-                    data_module = CIFAR10ShahanaModule(conf)
-                    args.percent_instance_noise = conf.data.percent_instance_noise
-                    args.instance_indep_conf_type = conf.data.instance_indep_conf_type
-                    args.total_noise_rate = conf.data.total_noise_rate
-                else:
-                    raise Exception(f'dataset typo: {conf.data.dataset}')
-                data_module.prepare_data()
-                data_module.setup('fit')
-                data_module.setup('test')
-                alg_options['train_loader'] = data_module.train_dataloader()
-                alg_options['val_loader'] = data_module.val_dataloader()
-                alg_options['test_loader']= data_module.test_dataloader()
-
-                #################################Run Algorithms#######################################
-                logger.info('Starting trial '+str(t)+'.....................')
-                # fileid.write(str(t+1)+'\t')
-                for k in range(len(algorithms_list)):
-                    logger.info('Running '+algorithms_list[k])
-                    alg_options['method']=algorithms_list[k]
-                    test_acc=algorithmwrapperEECS(args,alg_options,logger)
-                    test_acc_all[k,t]=test_acc*100
-                    wandb.summary['test_acc'] = test_acc
-                    # fileid.write("%.4f\t" %(test_acc_all[k,t]))
-                    #fileid.close()
-                    #fileid = open(result_file,"a")
-                # fileid.write('\n')
-
-            # fileid.write('MEAN\t')
-            # np.savetxt(fileid,np.transpose(np.nanmean(test_acc_all,axis=1)),fmt='%.4f',delimiter='\t',newline='\t')
-            # fileid.write('\nMEDIAN\t')
-            # np.savetxt(fileid,np.transpose(np.nanmedian(test_acc_all,axis=1)),fmt='%.4f',delimiter='\t',newline='\t')
-            # fileid.write('\nSTD\t')
-            # np.savetxt(fileid,np.transpose(np.nanstd(test_acc_all,axis=1)),fmt='%.4f',delimiter='\t',newline='\t')
-
-        main()
+    main()
 
 
 
@@ -268,4 +255,8 @@ def main_hydra(conf):
 
 if __name__ == '__main__':
     main_hydra()
+
+    # x= my_main
+    # inspect_serializability(x, name="test")
+    # print('xx')
 

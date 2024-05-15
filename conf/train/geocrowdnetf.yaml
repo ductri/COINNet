@@ -1,6 +1,6 @@
 lr: 1e-3
 batch_size: 512
 num_epochs: 200
-lam: 1e-3
+lam: 1e-2
 name: geocrowdnetf
 vol_reg_type: max_logdeth

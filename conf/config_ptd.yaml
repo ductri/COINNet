@@ -6,4 +6,4 @@ root: '.'
 fnet_type: 'resnet34'
 tags: ['ptd']
 method_dir: out_ptd/
-with_ray: True
+with_ray: False

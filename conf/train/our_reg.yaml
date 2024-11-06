@@ -2,6 +2,9 @@ lr: 1e-3
 batch_size: 512
 lam1: 1e-2
 lam2: 1e-2
-num_epochs: 200
+num_epochs: 150
 name: reg_version
-plot_confusion_matrix: True
+plot_confusion_matrix: False
+voltype: f
+confusion_init_type: 1
+

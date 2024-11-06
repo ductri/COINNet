@@ -5,8 +5,8 @@ import torch
 # from .my_config import my_config
 
 
-def adapt_train_batch(batch, num_classes, devide='cuda'):
-    x, annotations, i, y = batch
+def adapt_train_batch(batch, num_classes, device='cuda'):
+    x, annotations, (i, y) = batch
     left = x
 
     batch_size, num_annotators = annotations.shape

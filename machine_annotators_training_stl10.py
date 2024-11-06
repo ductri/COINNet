@@ -1,4 +1,5 @@
 # https://jovian.com/venkatesh-vran/stl10-resnet
+import numpy as np
 import torch
 import torch.nn.functional as F
 from torchvision.datasets import STL10
@@ -74,7 +75,7 @@ class LitSTL10(L.LightningDataModule):
         self.root = root
 
         train_dataset = STL10(f'{self.root}/../datasets/', split='train', transform=self.train_transform, download=False)
-        self.train_set  = train_dataset
+        self.train_set  = Subset(train_dataset, np.random.choice(len(train_dataset), 3000))
         print(f'dataset size: {len(self.train_set)}')
 
         test_dataset = STL10(f'{self.root}/../datasets/', split='test', transform=self.val_transform, download=False)

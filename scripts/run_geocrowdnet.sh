@@ -1,7 +1,11 @@
 #/bin/bash
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_7_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_7_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_7_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_6_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_6_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_6_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_6.5_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_6.5_single_label
+ray job submit --no-wait -- python src/run_geocrowdnet.py with_ray=True data=cifar10_machine_6.5_single_label
 
-CUDA_VISIBLE_DEVICES=1 python src/cifar10_geocrowdnet.py train=geocrowdnetf data.percent_instance_noise=0 &&
-CUDA_VISIBLE_DEVICES=1 python src/cifar10_geocrowdnet.py train=geocrowdnetf data.percent_instance_noise=0.1 &&
-CUDA_VISIBLE_DEVICES=1 python src/cifar10_geocrowdnet.py train=geocrowdnetf data.percent_instance_noise=0.2 &&
-CUDA_VISIBLE_DEVICES=1 python src/cifar10_geocrowdnet.py train=geocrowdnetf data.percent_instance_noise=0.3 &&
-CUDA_VISIBLE_DEVICES=1 python src/cifar10_geocrowdnet.py train=geocrowdnetf data.percent_instance_noise=0.4

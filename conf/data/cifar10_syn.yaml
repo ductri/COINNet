@@ -3,5 +3,5 @@ M: 3
 K: 10
 dataset: cifar10
 total_noise_rate: 0.2
-percent_instance_noise: 0.3
+percent_instance_noise: 0.5
 instance_indep_conf_type: symmetric

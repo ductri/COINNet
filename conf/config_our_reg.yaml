@@ -1,5 +1,5 @@
 defaults:
-  - data: fmnist_machine_1
+  - data: cifar10_syn_single_label
   - train: our_reg
 
 tags: ['our_reg']

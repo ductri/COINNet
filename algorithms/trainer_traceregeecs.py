@@ -17,6 +17,7 @@ import seaborn as sn
 import pandas as pd
 import matplotlib.pyplot as plt
 import wandb
+from cluster_acc_metric import MyClusterAccuracy
 
 
 def trainer_traceregeecs(args,alg_options,logger):
@@ -170,7 +171,7 @@ def train_val(args,alg_options,logger):
         n_train_acc=0
         #for i, data_t in enumerate(train_loader):
         # for _,batch_x, batch_annotations, batch_annot_onehot, batch_annot_mask, batch_annot_list, batch_y,_,_,_ in train_loader:
-        for batch_x, batch_annotations, _, _ in tqdm(train_loader):
+        for batch_x, batch_annotations, _ in tqdm(train_loader):
             flag=0
             if torch.cuda.is_available:
                 batch_x=batch_x.to(device)
@@ -208,6 +209,7 @@ def train_val(args,alg_options,logger):
         with torch.no_grad():
             model_f.eval()
             n_val_acc=0
+            val_cluster_acc_metric = MyClusterAccuracy(args.K)
             for batch_x,batch_y in val_loader:
                 if torch.cuda.is_available:
                     batch_x=batch_x.to(device)
@@ -216,7 +218,9 @@ def train_val(args,alg_options,logger):
                 y_hat = torch.max(f_x,1)[1]
                 u = (y_hat == batch_y).sum()
                 n_val_acc += u.item()
-            val_acc_list.append(n_val_acc /len_val_data )
+                val_cluster_acc_metric.update(preds=y_hat, target=batch_y)
+            # val_acc_list.append(n_val_acc /len_val_data )
+            val_acc_list.append(val_cluster_acc_metric.compute())
             train_acc_list.append(n_train_acc/len_train_data)
 
             # A_est error
@@ -234,7 +238,7 @@ def train_val(args,alg_options,logger):
                 ce_loss / len_train_data*args.batch_size,reg_loss / len_train_data*args.batch_size,\
                 n_train_acc / len_train_data,n_val_acc / len_val_data,\
                 A_est_error))
-        wandb.log({'Val. Acc': n_val_acc / len_val_data})
+        wandb.log({'Val. Acc': n_val_acc / len_val_data, 'Val. Cluster. Acc': val_cluster_acc_metric.compute()})
 
         if val_acc_list[epoch] > best_val_score:
             best_val_score = val_acc_list[epoch]
@@ -269,6 +273,7 @@ def test(args,alg_options,logger, best_model):
     len_test_data=len(test_loader.dataset)
     with torch.no_grad():
         model.eval()
+        test_cluster_acc_metric = MyClusterAccuracy(args.K)
         for batch_x,batch_y in test_loader:
             if torch.cuda.is_available:
                 batch_x=batch_x.to(device)
@@ -277,9 +282,12 @@ def test(args,alg_options,logger, best_model):
             y_hat = torch.max(f_x,1)[1]
             u = (y_hat == batch_y).sum()
             n_test_acc += u.item()
+            test_cluster_acc_metric.update(preds=y_hat, target=batch_y)
     logger.info('Final test accuracy : {:.4f}'.format(n_test_acc/len_test_data))
     wandb.summary['Final test accuracy'] = n_test_acc/len_test_data
-    return (n_test_acc/len_test_data)
+    wandb.summary['Final cluster test accuracy'] = test_cluster_acc_metric.compute()
+    # return (n_test_acc/len_test_data)
+    return test_cluster_acc_metric.compute()
 
 
 def regularization_loss_logdeth(A,f_x,M,K):

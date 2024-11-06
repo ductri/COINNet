@@ -22,6 +22,7 @@ from . import resnet
 from . import resnet_bayes
 from collections import OrderedDict
 import wandb
+from cluster_acc_metric import MyClusterAccuracy
 
 
 def super_main(conf, unique_name):
@@ -59,6 +60,7 @@ def super_main(conf, unique_name):
     args.num_workers = conf.train.num_workers
     args.batch_size = conf.train.batch_size
     args.num_classes = conf.data.K
+    args.l = conf.train.lr
 
 
     torch.cuda.set_device(args.gpu)
@@ -239,7 +241,7 @@ def super_main(conf, unique_name):
             # Loss transfer
 
             # prec1, loss = train_one_step(model, data, labels, optimizer1, nn.CrossEntropyLoss(), 1-args.noise_rate, clip)
-            prec1, loss = train_one_step(model1, data, labels, optimizer1, nn.CrossEntropyLoss())
+            prec1, loss = train_one_step(model1, data, labels, optimizer1, nn.CrossEntropyLoss(ignore_index=-1))
 
             if (i + 1) % args.print_freq == 0:
                 print('Epoch [%d], Iter [%d/%d] Training Accuracy1: %.4F, Loss1: %.4f'
@@ -257,6 +259,7 @@ def super_main(conf, unique_name):
         correct1 = 0
         total1 = 0
         with torch.no_grad():
+            cluster_acc_metric = MyClusterAccuracy(conf.data.K)
             for data, noisy_label, clean_label, _ in val_loader:
                 data = data.cuda()
                 logits1 = model1(data)
@@ -264,8 +267,10 @@ def super_main(conf, unique_name):
                 _, pred1 = torch.max(outputs1.data, 1)
                 total1 += noisy_label.size(0)
                 correct1 += (pred1.cpu() == clean_label.long()).sum()
+                cluster_acc_metric.update(preds=pred1, target=clean_label)
 
-            acc1 = 100 * float(correct1) / float(total1)
+            # acc1 = 100 * float(correct1) / float(total1)
+            acc1 = cluster_acc_metric.compute()
 
         return acc1
 
@@ -359,7 +364,7 @@ def super_main(conf, unique_name):
         best_acc = 0.
         classifier.cuda()
         cudnn.benchmark = True
-        optimizer_warmup = torch.optim.SGD(classifier.parameters(), lr=0.01, momentum=0.9)
+        optimizer_warmup = torch.optim.SGD(classifier.parameters(), lr=conf.train.lr, momentum=0.9)
         print('starting warm up')
         for epoch in range(0, conf.train.warmup_epoch):
             classifier.train()
@@ -472,16 +477,22 @@ def super_main(conf, unique_name):
         #     Bayesian_T_Network_state_dict.update(temp)
         #     Bayesian_T_Network.load_state_dict(Bayesian_T_Network_state_dict)
         if args.dataset == 'cifar10':
-            Bayesian_T_Network = resnet_bayes.ResNet34(100)
+            if conf.data.dataset[:7] == 'labelme':
+                Bayesian_T_Network = resnet_bayes.ModifiedResNetForLableMe()
+            elif conf.data.dataset in ['imagenet15_feature', 'imagenet15_feature_true_label']:
+                Bayesian_T_Network = resnet_bayes.ModifiedResNetForImageNet15Feature()
+            else:
+                Bayesian_T_Network = resnet_bayes.ResNet34(100)
             warm_up_dict = classifier.state_dict()
             temp = OrderedDict()
             Bayesian_T_Network_state_dict = Bayesian_T_Network.state_dict()
             classifier.load_state_dict(torch.load(model_dir + '/' + 'warmup_model.pth'))
-            for name, parameter in classifier.named_parameters():
-                if name in Bayesian_T_Network_state_dict:
-                    temp[name] = parameter
-            Bayesian_T_Network_state_dict.update(temp)
-            Bayesian_T_Network.load_state_dict(Bayesian_T_Network_state_dict)
+            if conf.data.dataset not in ['labelme', 'imagenet15_feature', 'imagenet15_feature_true_label']:
+                for name, parameter in classifier.named_parameters():
+                    if name in Bayesian_T_Network_state_dict:
+                        temp[name] = parameter
+                Bayesian_T_Network_state_dict.update(temp)
+                Bayesian_T_Network.load_state_dict(Bayesian_T_Network_state_dict)
     #         for name, parameter in Bayesian_T_Network.named_parameters():
     #             if 'bayes_linear' not in name:
     #                 parameter.requires_grad = False
@@ -490,7 +501,7 @@ def super_main(conf, unique_name):
         Bayesian_T_Network.cuda()
         #Learning Bayes T
     #     clf_bayes_output -> transition matrix with size c*c
-        optimizer_bayes = torch.optim.SGD(Bayesian_T_Network.parameters(), lr=0.01, momentum=0.9)
+        optimizer_bayes = torch.optim.SGD(Bayesian_T_Network.parameters(), lr=conf.train.lr, momentum=0.9)
         loss_function = nn.NLLLoss()
         for epoch in range(0, conf.train.bayes_train_epoch):
             bayes_loss = 0.
@@ -500,9 +511,10 @@ def super_main(conf, unique_name):
                 bayes_labels, noisy_labels = bayes_labels.cuda(), noisy_labels.cuda()
                 # Forward + Backward + Optimize
                 batch_matrix = Bayesian_T_Network(data)# batch_size x 10 x 10
-                noisy_class_post = torch.zeros((batch_matrix.shape[0], 10))
+                num_classes = conf.data.K
+                noisy_class_post = torch.zeros((batch_matrix.shape[0], num_classes))
                 for j in range(batch_matrix.shape[0]):
-                    bayes_label_one_hot = torch.nn.functional.one_hot(bayes_labels[j], 10).float() # 1*10
+                    bayes_label_one_hot = torch.nn.functional.one_hot(bayes_labels[j], num_classes).float() # 1*10
                     bayes_label_one_hot = bayes_label_one_hot.unsqueeze(0)
                     noisy_class_post_temp = bayes_label_one_hot.float().mm(batch_matrix[j]) # 1*10 noisy
                     noisy_class_post[j, :] = noisy_class_post_temp

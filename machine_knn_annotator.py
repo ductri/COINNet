@@ -20,6 +20,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from helpers.model import  BasicBlock
 import constants
 import unified_metrics
+import my_dataset
 
 
 def train_cifar10():
@@ -72,8 +73,38 @@ def train_fmnist():
         print(f'Acc: {np.mean((predict == y)*1.0)}')
         print(f'Saved data to {path_to_file} ')
 
+def train_stl10():
+    project_name = 'shahana_outlier'
+    tags = ['machine_annotators_training', 'knn', 'stl10']
+    with wandb.init(entity='narutox', project=project_name, tags=tags) as run:
+        means = [1.7776489e-07, -3.6621095e-08, -9.346008e-09]
+        stds = [1.0, 1.0, 1.0]
+        stats = (means, stds)
+        transform = v2.Compose([
+            v2.ToTensor(),
+            v2.Normalize(*stats,inplace=True)
+        ])
+
+        train_set = my_dataset.get_stl10_train('./../datasets/', transform)
+        dataloader = DataLoader(train_set, batch_size=len(train_set), shuffle=False)
+
+        X, y = next(iter(dataloader))
+        print(f'size: {X.shape}')
+        X = X.cpu().numpy()
+        y = y.cpu().numpy()
+        # X = X.mean(axis=1)
+        X = X.reshape(X.shape[0], -1)
+
+        predictor = KNeighborsClassifier(n_neighbors=20)
+        predict = predictor.fit(X, y).predict(X)
+
+        path_to_file = './data/stl10_knn_annotator.pkl'
+        with open(path_to_file, 'wb') as o_f:
+            pkl.dump(predict, o_f)
+        print(f'Acc: {np.mean((predict == y)*1.0)}')
+        print(f'Saved data to {path_to_file} ')
 
 
 if __name__ == "__main__":
-    train_fmnist()
+    train_stl10()
 

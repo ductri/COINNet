@@ -5,5 +5,5 @@ defaults:
 root: '.'
 fnet_type: 'resnet34'
 tags: ['tracereg']
-with_ray: True
+with_ray: False
 

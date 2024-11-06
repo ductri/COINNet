@@ -1,12 +1,25 @@
 #/bin/bash
 
-# CUDA_VISIBLE_DEVICES=1 python src/my_training.py train=opt1 data.total_noise_rate=0.2 data.percent_instance_noise=0.1 &&
-# CUDA_VISIBLE_DEVICES=1 python src/my_training.py train=opt1 data.total_noise_rate=0.2 data.percent_instance_noise=0.3 &&
-# CUDA_VISIBLE_DEVICES=1 python src/my_training.py train=opt1 data.total_noise_rate=0.2 data.percent_instance_noise=0.5 &&
-# echo 'Done'
+# Identity initialization
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_7 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_7 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_7 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6.5 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6.5 train.confusion_init_type=4 train.num_epochs=100 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6.5 train.confusion_init_type=4 train.num_epochs=100 
 
-# CUDA_VISIBLE_DEVICES=0 python src/my_training.py train=opt1 data.total_noise_rate=0.4 data.percent_instance_noise=0.1
-CUDA_VISIBLE_DEVICES=0 python src/my_training.py train=opt1 data.total_noise_rate=0.4 data.percent_instance_noise=0.3 &&
-CUDA_VISIBLE_DEVICES=0 python src/my_training.py train=opt1 data.total_noise_rate=0.4 data.percent_instance_noise=0.5 &&
+# single label on machine annotations
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_7_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_7_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_7_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6.5_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6.5_single_label train.num_epochs=150 
+ray job submit --no-wait -- python src/my_training.py with_ray=True data=cifar10_machine_6.5_single_label train.num_epochs=150 
 echo 'Done'
 

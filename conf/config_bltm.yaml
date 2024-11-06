@@ -6,4 +6,4 @@ root: '.'
 fnet_type: 'resnet34'
 tags: ['bltm']
 method_dir: out_bltm/
-with_ray: True
+with_ray: False

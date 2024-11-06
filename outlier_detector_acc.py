@@ -27,6 +27,7 @@ from my_lit_model import LitMyModuleManual
 from my_dataset import get_dataset
 from helpers.transformer import transform_train, transform_test, transform_target
 
+
 @hydra.main(config_path='./conf/', config_name='config_our_reg')
 def main(conf):
     print(OmegaConf.to_yaml(conf))

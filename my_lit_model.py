@@ -72,20 +72,42 @@ class ResNet(nn.Module):
 
         return clean, out
 
+    def forward_include_vector_before_last(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.layer1(out)
+        out = self.layer2(out)
+        out = self.layer3(out)
+        out = self.layer4(out)
+        out = self.avgpool(out)
+        out = out.view(out.size(0), -1)
+        logits = self.linear(out)
+        probs = F.softmax(logits, 1)
+        return probs, logits, out
+
 def ResNet34(num_classes):
     return ResNet(BasicBlock, [3,4,6,3], num_classes)
 
 
 class MyModel(nn.Module):
-    def __init__(self, backbone, K, M, N):
+    def __init__(self, backbone, K, M, N, init_type=1):
         super().__init__()
         # self.f = ResNet34(K)
         self.f = backbone
 
-        P0 = torch.stack([torch.eye(K) for _ in range(M)])
+        if init_type==1:
+            P0 = torch.stack([torch.eye(K) for _ in range(M)])
+        elif init_type==2:
+            P0 = torch.stack([torch.rand(K, K) for _ in range(M)])
+        elif init_type==3:
+            P0 = torch.from_numpy(np.load('./tmp/geocrowdnet_P.npy'))
+            print(f'P0 init by geocrowdnet {P0}')
+        elif init_type==4:
+            P0 = torch.stack([10*torch.eye(K) for _ in range(M)])
+        else:
+            raise Exception('xx')
+
         self.P0 = nn.Parameter(P0)
         self.P0_normalize = nn.Softmax(dim=1)
-
         e = torch.zeros(N, M, K)
         self.E = nn.Parameter(e)
         self.E_normalize = lambda x: x - x.mean(-1, keepdim=True)
@@ -127,7 +149,7 @@ class LitMyModuleManual(L.LightningModule):
 
         # self.model = MyModel(K, M, N)
         backbone = get_backbone(conf)
-        self.model = MyModel(backbone, K, M, N)
+        self.model = MyModel(backbone, K, M, N, conf.train.confusion_init_type)
 
         self.loss = nn.NLLLoss(ignore_index=-1, reduction='mean')
         self.val_cluster_acc_metric = MyClusterAccuracy(K)
@@ -144,7 +166,7 @@ class LitMyModuleManual(L.LightningModule):
         opt.zero_grad()
         lr_scheduler = self.lr_schedulers()
 
-        batch_x, batch_annotations, inds, indep_mark = batch
+        batch_x, batch_annotations, (inds, true_label) = batch
         assert batch_annotations.shape[1] == self.M
 
         Af_x, e, f_x = self.model(batch_x.float(), inds)
@@ -154,10 +176,20 @@ class LitMyModuleManual(L.LightningModule):
         if cross_entropy_loss > 100:
             cross_entropy_loss = torch.Tensor(0.)
 
-        HH = torch.mm(f_x.t(), f_x)
-        logdet = torch.log(torch.linalg.det(HH))
-        if (np.isnan(logdet.item()) or np.isinf(logdet.item()) or logdet.item() < -100)  :
-            logdet=torch.tensor(0.0)
+        if self.conf.train.voltype == 'f':
+            HH = torch.mm(f_x.t(), f_x)
+            logdet = -torch.log(torch.linalg.det(HH))
+            if (np.isnan(logdet.item()) or np.isinf(logdet.item()) or logdet.item() < -100)  :
+                logdet=torch.tensor(0.0)
+        elif self.conf.train.voltype == 'w':
+            P0 = self.model.P0_normalize(self.model.P0)
+            K = P0.shape[1]
+            W = P0.reshape(-1, K)
+            WW = torch.mm(W.t(),W)
+            logdet = torch.log(torch.linalg.det(WW+1e-3*torch.eye(K).cuda()))
+        else:
+            raise Exception('aa')
+
 
         err = self.model.get_e()
         err = err[inds]
@@ -167,14 +199,16 @@ class LitMyModuleManual(L.LightningModule):
         # e = (err**0.2).sum()/np.prod(err.shape)
         e = (err**0.2).sum()/err.shape[0]
 
-        loss = cross_entropy_loss - self.lam1*logdet + self.lam2*e
+        loss = cross_entropy_loss + self.lam1*logdet + self.lam2*e
 
         self.manual_backward(loss)
         opt.step()
         lr_scheduler.step()
 
-        log_data = {'ce_loss': cross_entropy_loss, 'logdet': logdet, 'sparse_loss': e, 'loss': loss}
+        pred = f_x.argmax(-1)
+        log_data = {'ce_loss': cross_entropy_loss, 'logdet': logdet, 'sparse_loss': e, 'loss': loss, 'acc': ((pred==true_label)*1.0).mean().item()}
         if 'instance_indep_conf_type' in self.conf.data:
+            indep_mark = batch[2][1]
             threshold, _ = torch.topk(err, int(self.conf.data.percent_instance_noise*err.shape[0]), sorted=True)
             threshold = threshold[-1]
             outlier_pred = (err < threshold)*1.0 # 0 means outliers
@@ -274,10 +308,10 @@ class ResNet9(nn.Module):
         self.conv4 = conv_block(256, 512, pool=True) # output: 512 x 6 x 6
         self.res2 = nn.Sequential(conv_block(512, 512), conv_block(512, 512))
 
-        self.classifier = nn.Sequential(nn.MaxPool2d(6),
+        self.classifier_ = nn.Sequential(nn.MaxPool2d(6),
                                         nn.Flatten(),
-                                        nn.Dropout(0.2),
-                                        nn.Linear(512, num_classes))
+                                        nn.Dropout(0.2),)
+        self.classifier = nn.Linear(512, num_classes)
 
     def forward(self, xb):
         out = self.conv1(xb)
@@ -286,9 +320,69 @@ class ResNet9(nn.Module):
         out = self.conv3(out)
         out = self.conv4(out)
         out = self.res2(out) + out
+        out = self.classifier_(out)
         logits = self.classifier(out)
         probs = F.softmax(logits, 1)
         return probs, logits
+
+    def forward_include_vector_before_last(self, xb):
+        out = self.conv1(xb)
+        out = self.conv2(out)
+        out = self.res1(out) + out
+        out = self.conv3(out)
+        out = self.conv4(out)
+        out = self.res2(out) + out
+        out = self.classifier_(out)
+        logits = self.classifier(out)
+        probs = F.softmax(logits, 1)
+        out = out.view(out.size(0), -1)
+        return probs, logits, out
+
+class SVHN(nn.Module):
+    def __init__(self, features, n_channel, num_classes):
+        super(SVHN, self).__init__()
+        assert isinstance(features, nn.Sequential), type(features)
+        self.features = features
+        self.classifier = nn.Sequential(
+            nn.Linear(n_channel, num_classes)
+        )
+        print(self.features)
+        print(self.classifier)
+
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        x = self.classifier(x)
+        out = x
+        clean = F.softmax(out, 1)
+        return clean, out
+
+def svhn_make_layers(cfg, batch_norm=False):
+    layers = []
+    in_channels = 3
+    for i, v in enumerate(cfg):
+        if v == 'M':
+            layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+        else:
+            padding = v[1] if isinstance(v, tuple) else 1
+            out_channels = v[0] if isinstance(v, tuple) else v
+            conv2d = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=padding)
+            if batch_norm:
+                layers += [conv2d, nn.BatchNorm2d(out_channels, affine=False), nn.ReLU(), nn.Dropout(0.3)]
+            else:
+                layers += [conv2d, nn.ReLU(), nn.Dropout(0.3)]
+            in_channels = out_channels
+    return nn.Sequential(*layers)
+def svhn(n_channel, pretrained=None):
+    cfg = [n_channel, n_channel, 'M', 2*n_channel, 2*n_channel, 'M', 4*n_channel, 4*n_channel, 'M', (8*n_channel, 0), 'M']
+    layers = svhn_make_layers(cfg, batch_norm=True)
+    model = SVHN(layers, n_channel=8*n_channel, num_classes=10)
+    if pretrained is not None:
+        m = model_zoo.load_url(model_urls['svhn'])
+        state_dict = m.state_dict() if isinstance(m, nn.Module) else m
+        assert isinstance(state_dict, (dict, OrderedDict)), type(state_dict)
+        model.load_state_dict(state_dict)
+    return model
 
 
 class FCNNDropout(nn.Module):
@@ -299,32 +393,49 @@ class FCNNDropout(nn.Module):
         layer_list.append(nn.Linear(input_dim, 128))
         layer_list.append(nn.ReLU(inplace=False))
         layer_list.append(nn.Dropout(0.5))
-        layer_list.append(nn.Linear(128, K))
         self.layers=nn.Sequential(*layer_list)
+        self.last_layer = nn.Linear(128, K)
 
     def forward(self,x):
-        logits = self.layers(x)
+        out = self.layers(x)
+        logits = self.last_layer(out)
         probs = F.softmax(logits, dim=1)
         return probs, logits
+
+    def forward_include_vector_before_last(self, x):
+        out = self.layers(x)
+        logits = self.last_layer(out)
+        probs = F.softmax(logits, dim=1)
+        return probs, logits, out
 
 
 def get_backbone(conf):
     if conf.data.dataset[:8] == 'cifar100':
         return ResNet34(100)
     if conf.data.dataset[:7] == 'cifar10':
+        print('Getting ResNet34')
         return ResNet34(10)
+    if conf.data.dataset.startswith('svhn'):
+        print('Getting regular model')
+        return svhn(32)
     if conf.data.dataset == 'fmnist_machine':
         print('Getting GarmentClassifier')
         backbone = GarmentClassifier(10)
         # backbone.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=1, padding=0, bias=False)
         return backbone
-    if conf.data.dataset == 'stl10_machine':
+    if conf.data.dataset in ['stl10_machine', 'stl10_machine_single_annotator']:
         print('Getting ResNet9')
         backbone = ResNet9(3, 10)
         return backbone
     if conf.data.dataset == 'labelme':
         print('Getting FCNNDropout')
         backbone = FCNNDropout(8192, conf.data.K)
+        return backbone
+    if conf.data.dataset == 'imagenet15' or conf.data.dataset == 'imagenet15_ver2':
+        return ResNet34(15)
+    if conf.data.dataset in ['imagenet15_feature', 'imagenet15_feature_true_label']:
+        print('Getting FCNNDropout')
+        backbone = FCNNDropout(512, conf.data.K)
         return backbone
 
     raise Exception('bla bla')

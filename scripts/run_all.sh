@@ -1,10 +1,34 @@
 #!/bin/bash
-python src/run_geocrowdnet.py data=cifar10_machine_6.5 with_ray=False train=geocrowdnetw ; \
-python src/run_geocrowdnet.py data=cifar10_machine_6.5 with_ray=False train=geocrowdnetw ; \
-python src/run_geocrowdnet.py data=cifar10_machine_6.5 with_ray=False train=geocrowdnetw ; \
-python src/run_geocrowdnet.py data=cifar10_machine_6 with_ray=False train=geocrowdnetw ; \
-python src/run_geocrowdnet.py data=cifar10_machine_7 with_ray=False train=geocrowdnetw ; \
-python src/run_geocrowdnet.py data=cifar10_machine_7 with_ray=False train=geocrowdnetw ; \
-python src/run_reweight.py data=stl10_2 with_ray=False ;\
-python src/run_reweight.py data=stl10_2 with_ray=False ;\
-echo "done"
+
+export CUDA_VISIBLE_DEVICES=0;
+python src/run_gce.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_gce.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_gce.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+
+python src/run_reweight.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_reweight.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_reweight.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+
+python src/run_volminnet.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_volminnet.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_volminnet.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+
+python src/run_tracereg.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_tracereg.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_tracereg.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+
+python src/run_bltm.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_bltm.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+python src/run_bltm.py data=imagenet15_3 train.num_epochs=100 train.batch_size=128 train.lr=1e-2;
+
+python src/run_ptd.py data=imagenet15_3 train.batch_size=128 train.lr=1e-2 train.n_epoch_4=200;
+python src/run_ptd.py data=imagenet15_3 train.batch_size=128 train.lr=1e-2 train.n_epoch_4=200;
+python src/run_ptd.py data=imagenet15_3 train.batch_size=128 train.lr=1e-2 train.n_epoch_4=200;
+
+# Cant custom num_epochs
+# XXX errr
+
+
+
+
+

@@ -12,7 +12,8 @@ from my_lit_model import get_backbone
 from .. import global_conf
 
 torch.cuda.set_device(Config.device_id)
-priori_fixed = torch.FloatTensor([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1])
+# priori_fixed = torch.FloatTensor([0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1])
+priori_fixed = (torch.ones(Config.num_classes)/Config.num_classes).cuda()
 
 
 class VGG(nn.Module):

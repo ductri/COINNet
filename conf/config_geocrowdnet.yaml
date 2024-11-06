@@ -1,9 +1,9 @@
 defaults:
-  - data: fmnist_machine_1
+  - data: cifar10_syn_missing
   - train: geocrowdnetf
 
 root: '.'
 fnet_type: 'resnet34'
 tags: ['geocrowdnet']
-with_ray: True
+with_ray: False
 

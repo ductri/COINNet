@@ -105,7 +105,7 @@ class cifar10_dataset(Data.Dataset):
         # print()
 
         train_loader, _, _ = load_data(conf)
-        X, annotations, Y = data_to_mem(train_loader)
+        X, annotations, _ = data_to_mem(train_loader)
         self.train_data = X
         self.train_labels = annotations
 

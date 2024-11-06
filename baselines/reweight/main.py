@@ -16,6 +16,7 @@ from . import tools, data_load, Lenet, Resnet
 from .transformer import transform_train, transform_test,transform_target
 from .loss import reweight_loss
 import utils
+from cluster_acc_metric import MyClusterAccuracy
 
 
 def main(conf, unique_name):
@@ -65,6 +66,8 @@ def main(conf, unique_name):
     args.model_dir = f'{conf.model_dir}/{unique_name}'
     args.dataset = conf.data.dataset
     args.batch_size = conf.train.batch_size
+    args.num_workers = conf.train.num_workers
+    args.lr = conf.train.lr
 
     estimate_state = True
     model = Resnet.ResNet34(args.num_classes, conf)
@@ -233,6 +236,7 @@ def main(conf, unique_name):
 
         with torch.no_grad():
             model.eval()
+            val_cluster_acc_metric = MyClusterAccuracy(conf.data.K)
             for batch_x,batch_y in val_loader:
                 model.eval()
                 batch_x = batch_x.cuda()
@@ -246,6 +250,7 @@ def main(conf, unique_name):
                 val_loss += loss.item()
                 pred = torch.max(out_forward, 1)[1]
                 val_correct = (pred == batch_y).sum()
+                val_cluster_acc_metric.update(preds=pred, target=batch_y)
                 val_acc += val_correct.item()
 
         print('Train Loss: {:.6f}, Acc: {:.6f}'.format(train_loss / (len(train_data))*args.batch_size, train_acc / (len(train_data))))
@@ -253,9 +258,11 @@ def main(conf, unique_name):
         wandb.log({'train_loss': train_loss / (len(train_data))*args.batch_size,
             'train_acc': train_acc / (len(train_data)),
             'val_loss': val_loss / (len(val_data))*args.batch_size,
-            'val_acc': val_acc / (len(val_data))
+            'val_acc': val_acc / (len(val_data)),
+            'val_cluster_acc': val_cluster_acc_metric.compute(),
             })
-        current_val_acc = val_acc / (len(val_data))
+        # current_val_acc = val_acc / (len(val_data))
+        current_val_acc = val_cluster_acc_metric.compute()
         if current_val_acc > best_val_acc:
             best_val_acc = current_val_acc
             path_save = f'{conf.root}/out_reweight/{unique_name}.pt'
@@ -265,6 +272,7 @@ def main(conf, unique_name):
     utils.load_model(model, path_save)
     with torch.no_grad():
         model.eval()
+        test_cluster_acc_metric = MyClusterAccuracy(conf.data.K)
         for batch_x, batch_y in test_loader:
             batch_x = batch_x.cuda()
             batch_y = batch_y.cuda()
@@ -273,10 +281,12 @@ def main(conf, unique_name):
             eval_loss += loss.item()
             pred = torch.max(out, 1)[1]
             eval_correct = (pred == batch_y).sum()
+            test_cluster_acc_metric.update(preds=pred, target=batch_y)
             eval_acc += eval_correct.item()
 
-        print('Test Loss: {:.6f}, Acc: {:.6f}'.format(eval_loss / (len(test_data))*args.batch_size, eval_acc / (len(test_data))))
+        print('Test Loss: {:.6f}, Acc: {:.6f}, Cluster Acc: {:.4f}'.format(eval_loss / (len(test_data))*args.batch_size, eval_acc / (len(test_data)), test_cluster_acc_metric.compute()))
         wandb.summary['test_loss'] = eval_loss / (len(test_data))*args.batch_size
         wandb.summary['test_acc'] = eval_acc / (len(test_data))
+        wandb.summary['test_cluster_acc'] = test_cluster_acc_metric.compute()
 
 

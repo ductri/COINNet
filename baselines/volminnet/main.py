@@ -14,6 +14,7 @@ from .transformer import transform_train, transform_test,transform_target
 from .data_converter import load_data
 from .utils import create_dir
 from utils import save_model, load_model
+from cluster_acc_metric import MyClusterAccuracy
 
 
 def super_main(conf, unique_name):
@@ -45,7 +46,9 @@ def super_main(conf, unique_name):
     args.N = conf.data.N
     args.fnet_type = conf.fnet_type
     args.classifier_NN = conf.fnet_type
+    args.num_classes = conf.data.K
     path_to_model = f'{conf.method_dir}/{unique_name}'
+    args.lr = conf.train.lr
     # args.save_dir = path_to_model
 
     # np.set_printoptions(precision=2,suppress=True)
@@ -225,6 +228,7 @@ def super_main(conf, unique_name):
             with torch.no_grad():
                 model.eval()
                 trans.eval()
+                val_cluster_acc_metric = MyClusterAccuracy(conf.data.K)
                 for batch_x, batch_y in val_loader:
                     batch_x = batch_x.to(device)
                     batch_y = batch_y.to(device)
@@ -236,6 +240,7 @@ def super_main(conf, unique_name):
                     val_loss += loss.item()
                     pred = torch.max(out, 1)[1]
                     val_correct = (pred == batch_y).sum()
+                    val_cluster_acc_metric.update(preds=pred, target=batch_y)
                     val_acc += val_correct.item()
 
 
@@ -246,16 +251,20 @@ def super_main(conf, unique_name):
                 'vol_loss' : train_vol_loss / (len(train_data))*args.batch_size,
                 'train_acc': train_acc / len (train_data),
                 'val_loss': val_loss / (len(val_data))*args.batch_size,
-                'val_acc' : val_acc / (len(val_data))
+                'val_acc' : val_acc / (len(val_data)),
+                'val_cluster_acc' : val_cluster_acc_metric.compute(),
                 })
-            if val_acc / (len(val_data)) > best_val_acc:
-                best_val_acc = val_acc / (len(val_data))
+            # if val_acc / (len(val_data)) > best_val_acc:
+            if val_cluster_acc_metric.compute() > best_val_acc:
+                # best_val_acc = val_acc / (len(val_data))
+                best_val_acc = val_cluster_acc_metric.compute()
                 save_model(model, path=path_to_model)
 
 
 
             val_loss_list.append(val_loss / (len(val_data)))
-            val_acc_list.append(val_acc / (len(val_data)))
+            # val_acc_list.append(val_acc / (len(val_data)))
+            val_acc_list.append(val_cluster_acc_metric.compute())
             test_acc_list.append(eval_acc / (len(test_data)))
 
 
@@ -284,6 +293,7 @@ def super_main(conf, unique_name):
         load_model(model, path=path_to_model)
         eval_acc = 0.
         with torch.no_grad():
+            test_cluster_acc_metric = MyClusterAccuracy(conf.data.K)
             model.eval()
             trans.eval()
 
@@ -296,11 +306,13 @@ def super_main(conf, unique_name):
                 eval_loss += loss.item()
                 pred = torch.max(clean, 1)[1]
                 eval_correct = (pred == batch_y).sum()
+                test_cluster_acc_metric.update(preds=pred, target=batch_y)
                 eval_acc += eval_correct.item()
 
-            print('Test Loss: {:.6f}, Acc: {:.6f}'.format(eval_loss / (len(test_data)) * args.batch_size,
-                eval_acc / (len(test_data))))
+            test_cluster_acc = test_cluster_acc_metric.compute()
+            print('Test Loss: {:.6f}, Acc: {:.6f}, Cluster Acc {:.4f}'.format(eval_loss / (len(test_data)) * args.batch_size, eval_acc / (len(test_data)), test_cluster_acc))
             wandb.summary['test_acc'] = eval_acc / (len(test_data))
+            wandb.summary['test_cluster_acc'] = test_cluster_acc
 
 
             est_T = t.detach().cpu().numpy()

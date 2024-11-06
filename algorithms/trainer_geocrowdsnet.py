@@ -19,6 +19,8 @@ import wandb
 from tqdm import tqdm
 from utils import count_parameters
 
+from cluster_acc_metric import MyClusterAccuracy
+
 
 def trainer_geocrowdsnet(args,alg_options,logger):
     lamda_list=alg_options['lamda_list']
@@ -174,6 +176,7 @@ def train_val(args,alg_options,logger):
 
     #Start training
     val_acc_list=[]
+    val_cluster_acc_list=[]
     train_acc_list=[]
     A_est_error_list=[]
     len_train_data=len(train_loader.dataset)
@@ -190,7 +193,7 @@ def train_val(args,alg_options,logger):
         n_train_acc=0
         #for i, data_t in enumerate(train_loader):
         # for _,batch_x, batch_annotations, batch_annot_onehot, batch_annot_mask, batch_annot_list, batch_y,_,_,_ in train_loader:
-        for batch_x, batch_annotations, _, _ in tqdm(train_loader):
+        for batch_x, batch_annotations, _ in tqdm(train_loader):
             flag=0
             if torch.cuda.is_available:
                 batch_x=batch_x.to(device)
@@ -224,6 +227,7 @@ def train_val(args,alg_options,logger):
 
 
         # Validation error
+        val_cluster_acc_metric = MyClusterAccuracy(args.K)
         with torch.no_grad():
             model_f.eval()
             n_val_acc=0
@@ -235,7 +239,9 @@ def train_val(args,alg_options,logger):
                 y_hat = torch.max(f_x,1)[1]
                 u = (y_hat == batch_y).sum()
                 n_val_acc += u.item()
+                val_cluster_acc_metric.update(preds=y_hat, target=batch_y)
             val_acc_list.append(n_val_acc /len_val_data )
+            val_cluster_acc_list.append(val_cluster_acc_metric.compute())
             train_acc_list.append(n_train_acc/len_train_data)
 
             # A_est error
@@ -248,10 +254,12 @@ def train_val(args,alg_options,logger):
         logger.info('epoch:{}, Total train loss: {:.4f}, ' \
                 'CE loss: {:.4f}, Regularizer loss: {:.4f}, '  \
                 'Train Acc: {:.4f},  Val. Acc: {:.4f}, ' \
+                'Val. Cluster. Acc: {:.4f}, ' \
                 ' Estim. error: {:.4f}'\
                 .format(epoch+1, total_train_loss / len_train_data*args.batch_size, \
                 ce_loss / len_train_data*args.batch_size,reg_loss / len_train_data*args.batch_size,\
                 n_train_acc / len_train_data,n_val_acc / len_val_data,\
+                val_cluster_acc_metric.compute(),
                 A_est_error))
 
 
@@ -260,19 +268,27 @@ def train_val(args,alg_options,logger):
                 'Regularizer loss': reg_loss / len_train_data*args.batch_size,   \
                 'Train Acc': n_train_acc / len_train_data,
                 'Val. Acc': n_val_acc / len_val_data,
+                   'Val. Cluster. Acc': val_cluster_acc_metric.compute(),
                 'Estim. error': A_est_error,
                 'lam_tracking': args.lam,
                 })
 
-        if val_acc_list[epoch] >= best_val_score:
-            best_val_score = val_acc_list[epoch]
+        # if val_acc_list[epoch] >= best_val_score:
+        #     best_val_score = val_acc_list[epoch]
+        #     best_f_model = copy.deepcopy(model_f)
+        if val_cluster_acc_list[epoch] >= best_val_score:
+            best_val_score = val_cluster_acc_list[epoch]
             best_f_model = copy.deepcopy(model_f)
 
     val_acc_array = np.array(val_acc_list)
+    val_cluster_acc_array = np.array(val_cluster_acc_list)
     epoch_best_val_score = np.argmax(val_acc_array)
+    epoch_best_val_cluster_score = np.argmax(val_cluster_acc_array)
     logger.info("Best epoch based on validation: %d" % epoch_best_val_score)
     logger.info("Final train accuracy : %f" % train_acc_list[epoch_best_val_score])
     logger.info("Best val accuracy : %f" % val_acc_list[epoch_best_val_score])
+    logger.info("Best epoch based on cluster validation: %d" % epoch_best_val_cluster_score)
+    logger.info("Best val cluster accuracy : %f" % val_cluster_acc_list[epoch_best_val_cluster_score])
 
     out={}
     out['epoch_best_val_score']= epoch_best_val_score
@@ -281,9 +297,14 @@ def train_val(args,alg_options,logger):
     out['best_train_soft_labels']=train_soft_labels
     out['final_model_f_dict']=best_f_model
 
+    out['epoch_best_val_cluster_score']= epoch_best_val_cluster_score
+    out['best_val_cluster_acc']= val_cluster_acc_list[epoch_best_val_cluster_score]
+
     wandb.summary['epoch_best_val_score']= epoch_best_val_score
+    wandb.summary['epoch_best_val_cluster_score']= epoch_best_val_cluster_score
     wandb.summary['best_train_acc']= train_acc_list[epoch_best_val_score]
     wandb.summary['best_val_acc']= val_acc_list[epoch_best_val_score]
+    wandb.summary['best_val_cluster_acc']= val_cluster_acc_list[epoch_best_val_cluster_score]
     wandb.summary['best_train_soft_labels']=train_soft_labels
 
 
@@ -307,6 +328,7 @@ def train_val(args,alg_options,logger):
 
 
 def test(args,alg_options,logger, best_model):
+    test_cluster_acc_metric = MyClusterAccuracy(args.K)
     test_loader = alg_options['test_loader']
     model=best_model
     device=alg_options['device']
@@ -323,8 +345,14 @@ def test(args,alg_options,logger, best_model):
             y_hat = torch.max(f_x,1)[1]
             u = (y_hat == batch_y).sum()
             n_test_acc += u.item()
+            test_cluster_acc_metric.update(preds=y_hat, target=batch_y)
     logger.info('Final test accuracy : {:.4f}'.format(n_test_acc/len_test_data))
     wandb.summary['Final test accuracy'] = n_test_acc/len_test_data
+    wandb.summary['Final test cluster accuracy'] = test_cluster_acc_metric.compute()
+
+    ## DEBUG
+    np.save('./tmp/geocrowdnet_P.npy', best_model.P.detach().cpu().numpy())
+    ##
     return (n_test_acc/len_test_data)
 
 

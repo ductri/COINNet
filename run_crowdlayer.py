@@ -91,8 +91,10 @@ def my_main(conf, unique_name):
         args.lam = conf.train.lam
         args.K = conf.data.K
         args.N = conf.data.N
+        args.M = conf.data.M
         args.fnet_type = conf.fnet_type
         args.classifier_NN = conf.fnet_type
+        args.learning_rate = conf.train.lr
 
         # Setting GPU and cuda settings
         torch.backends.cudnn.benchmark = True

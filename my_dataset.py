@@ -17,9 +17,9 @@ from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 from torchmetrics.clustering import CompletenessScore
 import wandb
-from torchvision.datasets import CIFAR10, CIFAR100, FashionMNIST, STL10
+from torchvision.datasets import CIFAR10, CIFAR100, FashionMNIST, STL10, SVHN
 from torchvision.transforms import v2
-from torch.utils.data import random_split, DataLoader, Dataset, Subset
+from torch.utils.data import random_split, DataLoader, Dataset, Subset, ConcatDataset
 from omegaconf import DictConfig
 
 # from helpers.model import CrowdNetwork2
@@ -31,6 +31,7 @@ from helpers.transformer import transform_train, transform_test, transform_targe
 from cluster_acc_metric import MyClusterAccuracy
 import constants
 from share_config import shahana_default_setting
+from imagenet15_preprocessing import ImageNet15Dataset, ImageNet15DatasetVer2, ImageNet15FeatureDataset, ImageNet15FeatureDatasetTrueLabel
 
 
 
@@ -79,7 +80,7 @@ class CIFAR10N(Dataset):
 
     def __getitem__(self, ind):
         X, _ = self.cifar10_clean_ds[ind]
-        return X, self.annotations[ind], ind, 1
+        return X, self.annotations[ind], (ind, 1)
 
 class NoisyLabelsDataset(Dataset):
     def __init__(self, clean_dataset, noisy_labels):
@@ -131,6 +132,21 @@ def preprare_cifar10_transforms():
         ])
     return transform_train, transform_val, transform_pred
 
+def preprare_svhn_transforms():
+    transform_train = v2.Compose([
+                v2.ToTensor(),
+                v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    transform_val = v2.Compose([
+                v2.ToTensor(),
+                v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    transform_pred = v2.Compose([
+                v2.ToTensor(),
+                v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+        ])
+    return transform_train, transform_val, transform_pred
+
 def prepare_fmnist_transform():
     transform = v2.Compose([v2.ToTensor(), v2.Normalize((0.5,), (0.5,))])
     return transform
@@ -158,7 +174,7 @@ def get_cifar100_train(dataset_root='./../datasets/', transform_train=None) -> D
     ds = CIFAR100(dataset_root, train=True, transform=transform_train)
     return ds
 def get_stl10_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
-    ds = STL10(dataset_root, split='train', transform=transform_train)
+    ds = STL10(dataset_root, split='train', transform=transform_train, download=True)
     return ds
 
 def get_cifar10_test(dataset_root='./../datasets/', transform_test=None) -> Dataset:
@@ -168,7 +184,7 @@ def get_cifar100_test(dataset_root='./../datasets/', transform_test=None) -> Dat
     ds = CIFAR100(dataset_root, train=False, transform=transform_test)
     return ds
 def get_stl10_test(dataset_root='./../datasets/', transform_test=None) -> Dataset:
-    ds = STL10(dataset_root, split='test', transform=transform_test)
+    ds = STL10(dataset_root, split='test', transform=transform_test, download=True)
     return ds
 
 def get_fmnist_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
@@ -177,6 +193,16 @@ def get_fmnist_train(dataset_root='./../datasets/', transform_train=None) -> Dat
 def get_fmnist_test(dataset_root='./../datasets/', transform=None) -> Dataset:
     ds = FashionMNIST(dataset_root, train=False, transform=transform)
     return ds
+
+def get_svhn_train(dataset_root='./../datasets/', transform_train=None) -> Dataset:
+    ds1 = SVHN(root=dataset_root, split='train', download=True, transform=transform_train)
+    ds2 = SVHN(root=dataset_root, split='extra', download=True, transform=transform_train)
+    ds = ConcatDataset([ds1, ds2])
+    return ds
+def get_svhn_test(dataset_root='./../datasets/', transform_test=None) -> Dataset:
+    ds = SVHN(root=dataset_root, split='test', download=True, transform=transform_test)
+    return ds
+
 
 def load_machine_labels(path_to_annotations):
     with open(path_to_annotations, 'rb') as i_f:
@@ -214,8 +240,46 @@ class AddingField(Dataset):
 
     def __getitem__(self, idx):
         item = self.ds[idx]
-        return item[:self.after_ind+1] + (self.new_labels[idx],) +\
-                item[self.after_ind+1:]
+        return list(item[:self.after_ind+1]) + [self.new_labels[idx],] +\
+                list(item[self.after_ind+1:])
+
+class RandomDeleteLabel(Dataset):
+    def __init__(self, ds, M, missing_rate):
+        self.ds = ds
+        N = len(self.ds)
+        seed = np.random.rand(N, M)
+        self.mask = seed<missing_rate
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        item = self.ds[idx]
+        annotations = item[1]
+        new_annotations = np.where(self.mask[idx], -1, annotations)
+        item[1] = new_annotations
+        return item
+
+class RandomSingleLabel(Dataset):
+    def __init__(self, ds, M):
+        self.ds = ds
+        N = len(self.ds)
+        self.inds = np.random.randint(0, M, size=(N))
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, idx):
+        item = self.ds[idx]
+        annotations = item[1]
+        chosen_m = self.inds[idx]
+        chosen_label = annotations[chosen_m]
+        # DEBUG
+        annotations[:] = -1
+        annotations[chosen_m] = chosen_label
+        item[1] = annotations
+        return item
+
 
 class ReplacingLabel(Dataset):
     def __init__(self, ds, new_labels):
@@ -242,6 +306,21 @@ class UnifiedDataset(Dataset):
         assert len(item)>= 2
         return item[0], item[1], item[2:]
 
+class FlattenAnnotationsDataset(Dataset):
+    def __init__(self, ds: UnifiedDataset):
+        self.ds = ds
+        self.M = len(self.ds[0][1])
+
+    def __len__(self):
+        return self.M * len(self.ds)
+
+    def __getitem__(self, ind):
+        x_ind = ind // self.M
+        y_ind = ind % self.M
+        x, annotations, extra = self.ds[x_ind]
+        return x, annotations[y_ind], extra
+
+
 class DecoratedDataset(Dataset):
     def __init__(self, ds):
         self.ds = ds
@@ -264,7 +343,18 @@ class MajorityVotingDataset(Dataset):
 
     def __getitem__(self, ind):
         outs = self.ds[ind]
-        outs_1 = mode(outs[1], keepdims=False)[0]
+        if len(outs[1]) > 1:
+            # np.random.shuffle(outs[1])
+            # outs_1 = mode(outs[1], keepdims=False)[0]
+
+            annotations = outs[1]
+            mask = annotations==-1
+            annotations = annotations[~mask]
+            np.random.shuffle(annotations)
+            outs_1 = mode(annotations, keepdims=True)[0][0]
+
+        else:
+            outs_1 = outs[1]
         return (outs[0], outs_1) + outs[2:]
 
 
@@ -274,30 +364,38 @@ class LitDataset(L.LightningDataModule):
     """
     Loader
     """
-    def __init__(self, train_dataset, val_dataset, test_dataset, batch_size):
+    def __init__(self, train_dataset, val_dataset, test_dataset, batch_size, num_workers=3):
         super().__init__()
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset
         self.test_dataset = test_dataset
         self.batch_size = batch_size
+        self.num_workers=num_workers
         print(f'train size: {len(self.train_dataset)}, val size:  {len(self.val_dataset)}, test size: {len(self.test_dataset)}')
 
     def train_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size,
-                num_workers=9, shuffle=True)
+                num_workers=self.num_workers, shuffle=True)
 
     def val_dataloader(self):
         return DataLoader(self.val_dataset, batch_size=self.batch_size,
-                num_workers=3)
+                num_workers=self.num_workers)
 
     def test_dataloader(self):
         return DataLoader(self.test_dataset, batch_size=self.batch_size,
-                num_workers=3)
+                num_workers=self.num_workers)
 
     def predict_dataloader(self):
         return DataLoader(self.train_dataset, batch_size=self.batch_size,
-                num_workers=3, shuffle=False)
+                num_workers=self.num_workers, shuffle=False)
 
+def load_shahana_cifar10_synthetic(conf):
+    args = shahana_default_setting(conf)
+    logger = FakeLogger()
+    train_data = cifar10_dataset(True, transform=transform_train(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
+    val_data = cifar10_dataset(False, transform=transform_test(args.dataset), target_transform=transform_target,split_per=0.95,args=args,logger=logger)
+    test_data = cifar10_test_dataset(transform=transform_test(args.dataset), target_transform=transform_target)
+    return train_data, val_data, test_data
 
 class CIFAR10ShahanaModule(L.LightningDataModule):
     def __init__(self, config: DictConfig):
@@ -384,7 +482,7 @@ class LitFmnistShahanaModule(L.LightningDataModule):
 
 
 class LitCIFAR10N(L.LightningDataModule):
-    def __init__(self, batch_size: int, root='./../datasets/'):
+    def __init__(self, batch_size: int, root='./'):
         super().__init__()
 
         self.transform_train = v2.Compose([
@@ -554,6 +652,15 @@ class LabelMeTrainDataset(Dataset):
         self.data = np.load(f'{data_root}/LabelMe/data_train_vgg16.npy')
         self.labels = np.load(f'{data_root}/LabelMe/labels_train.npy')
         self.annotations = np.load('data/LabelMe/answers.npy').astype(int)
+        # noisy_label[np.where(noisy_label != -1)]
+        annotations = [self.annotations[i, np.where(self.annotations[i, :]!=-1)] for i in range(self.annotations.shape[0])]
+        count_true = 0
+        count_total = 0
+        for true_label, noisy_label in zip(self.labels, annotations):
+            count_true += (true_label==noisy_label).sum()
+            count_total += len(noisy_label[0])
+        print(f'Total labels: {count_total}, correct_labels: {count_true}, noise_rate: {(count_total-count_true)/count_total}')
+        print()
 
     def __len__(self):
         return len(self.data)
@@ -584,19 +691,57 @@ class LabelMeTestDataset(Dataset):
         return self.test_data[ind], self.test_labels[ind]
 
 
+def inspect_missing_rate(ds):
+    missing_count = 0
+    annotations = np.array([ds[i][1] for i in range(len(ds))])
+    N, M = annotations.shape[0], annotations.shape[1]
+    print(f'Total samples: {N}, total annotations: {M*N}, number of annotators: {M}')
+    print(f'Missing inspection: actual rate = {(annotations == -1).sum()/M/N}')
+    for i in range(M):
+        print(f'\t Actual missing rate of annotator #{i+1}: {(annotations[:, i] == -1).sum()/N}')
+    print(f'Number of samples with 0 annotations: {((annotations!=-1).sum(-1)==0).sum()}')
+    print(f'Number of samples with 1 annotations: {((annotations!=-1).sum(-1)==1).sum()}')
+    print(f'Number of samples with 2 annotations: {((annotations!=-1).sum(-1)==2).sum()}')
+    print(f'Number of samples with 3 annotations: {((annotations!=-1).sum(-1)==3).sum()}')
+    print()
 
 
 def get_dataset(conf) -> LitDataset:
+    methods_with_new_data_structure = ['meidtm', 'bltm', 'geocrowdnetf',  'geocrowdnetw', 'volminnet', 'reweight', 'reg_version', 'ptd', 'tracereg', 'crowdlayer', 'maxmig', 'gce']
     if conf.data.dataset == 'cifar10':
-        data_module = CIFAR10ShahanaModule(conf)
+        # data_module = CIFAR10ShahanaModule(conf)
+        train_dataset, val_dataset, test_dataset = load_shahana_cifar10_synthetic(conf)
+        train_dataset = DatasetAdapter(train_dataset, [1, 2, 7])
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
+    elif conf.data.dataset == 'cifar10_missing':
+        train_dataset, val_dataset, test_dataset = load_shahana_cifar10_synthetic(conf)
+        train_dataset = DatasetAdapter(train_dataset, [1, 2, 7])
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        train_dataset = RandomDeleteLabel(train_dataset, conf.data.M, conf.data.missing_rate)
+        inspect_missing_rate(train_dataset)
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
+    elif conf.data.dataset == 'cifar10_single_label':
+        train_dataset, val_dataset, test_dataset = load_shahana_cifar10_synthetic(conf)
+        train_dataset = DatasetAdapter(train_dataset, [1, 2, 7])
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        train_dataset = RandomSingleLabel(train_dataset, conf.data.M)
+        inspect_missing_rate(train_dataset)
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
     elif conf.data.dataset == 'cifar10_fake':
         # data_module = LitFakeSynCIFAR10()
         train_dataset, val_dataset, test_dataset = load_sanity_check_cifar10()
         data_module = LitDataset(train_dataset, val_dataset, test_dataset,
                 conf.train.batch_size)
     elif conf.data.dataset == 'cifar10n':
-        data_module = LitCIFAR10N(conf.train.batch_size, f'{conf.root}/../datasets/')
-    elif conf.data.dataset == 'cifar10_machine' and conf.train.name not in ['meidtm', 'bltm']:
+        data_module = LitCIFAR10N(conf.train.batch_size, f'{conf.root}')
+    elif conf.data.dataset == 'cifar10_machine' and conf.train.name not in methods_with_new_data_structure:
         print('loading normal cifar10 machine dataset')
         train_transform, _, test_transform = preprare_cifar10_transforms()
         original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', train_transform)
@@ -608,7 +753,7 @@ def get_dataset(conf) -> LitDataset:
         test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
         data_module = LitDataset(train_dataset, val_dataset, test_dataset,
                 conf.train.batch_size)
-    elif conf.data.dataset == 'cifar10_machine' and conf.train.name in ['meidtm', 'bltm']:
+    elif conf.data.dataset == 'cifar10_machine' and conf.train.name in methods_with_new_data_structure:
         print('loading the new unified cifar10 machine dataset')
         train_transform, _, test_transform = preprare_cifar10_transforms()
         original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', train_transform)
@@ -623,11 +768,56 @@ def get_dataset(conf) -> LitDataset:
         test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
         data_module = LitDataset(train_dataset, val_dataset, test_dataset,
                 conf.train.batch_size)
-    # elif conf.data.dataset == 'cifar10n_pred':
-    #     train_transform, _, test_transform = preprare_cifar10_transforms()
-    #     original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', v2.ToTensor())
-    #     train_dataset, _, _, _ = split_train_val(original_train_dataset, train_prop=0.95)
-    #     data_module = LitDataset(train_dataset, [], [], conf.train.batch_size)
+    elif conf.data.dataset == 'svhn_machine' and conf.train.name in methods_with_new_data_structure:
+        print('loading the new unified SVHN machine dataset')
+        train_transform, _, test_transform = preprare_svhn_transforms()
+        original_train_dataset = get_svhn_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+        train_dataset, _, train_inds, val_inds = split_train_val(machine_train_dataset, train_prop=0.95)
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        # fields: image, annotations, (ind, label)
+        train_dataset = UnifiedDataset(train_dataset)
+
+        val_dataset = Subset(original_train_dataset, val_inds)
+        test_dataset = get_svhn_test(f'{conf.root}/../datasets', test_transform)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'cifar10_machine_single_label' and conf.train.name in methods_with_new_data_structure:
+        print('loading the new unified cifar10 machine dataset with single label')
+        train_transform, _, test_transform = preprare_cifar10_transforms()
+        original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+        train_dataset, _, train_inds, val_inds = split_train_val(machine_train_dataset, train_prop=0.95)
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        # fields: image, annotations, (ind, label)
+        train_dataset = RandomSingleLabel(train_dataset, conf.data.M)
+        inspect_missing_rate(train_dataset)
+        train_dataset = UnifiedDataset(train_dataset)
+
+        val_dataset = Subset(original_train_dataset, val_inds)
+        test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
+    elif conf.data.dataset == 'cifar10_machine_single_annotator' and \
+      conf.train.name in methods_with_new_data_structure:
+        print('loading the new unified cifar10 machine dataset')
+        train_transform, _, test_transform = preprare_cifar10_transforms()
+        original_train_dataset = get_cifar10_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+
+        train_dataset, _, train_inds, val_inds = split_train_val(machine_train_dataset, train_prop=0.95)
+        train_dataset = AddingField(train_dataset, range(len(train_dataset)), 1)
+        # fields: image, annotations, (ind, label)
+        train_dataset = UnifiedDataset(train_dataset)
+        # fields: image, annotaion, (ind, label)
+        train_dataset = FlattenAnnotationsDataset(train_dataset)
+
+        val_dataset = Subset(original_train_dataset, val_inds)
+        test_dataset = get_cifar10_test(f'{conf.root}/../datasets', test_transform)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset,
+                conf.train.batch_size)
     elif conf.data.dataset == 'cifar100_machine':
         print('loading dataset using new code')
         train_transform, _, test_transform = preprare_cifar10_transforms()
@@ -653,7 +843,7 @@ def get_dataset(conf) -> LitDataset:
         val_dataset = Subset(original_train_dataset, val_inds)
         test_dataset = get_fmnist_test(f'{conf.root}/../datasets', transform)
         data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
-    elif conf.data.dataset == 'stl10_machine' and conf.train.name not in ['meidtm', 'bltm']:
+    elif conf.data.dataset == 'stl10_machine' and conf.train.name not in methods_with_new_data_structure:
         print('Loading STL10 dataset')
         train_transform, test_transform = prepare_stl10_transform()
         original_train_dataset = get_stl10_train(f'{conf.root}/../datasets', train_transform)
@@ -664,7 +854,7 @@ def get_dataset(conf) -> LitDataset:
         test_dataset = get_stl10_test(f'{conf.root}/../datasets', test_transform)
         test_dataset, val_dataset, _, _ = split_train_val(test_dataset, train_prop=0.8)
         data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
-    elif conf.data.dataset == 'stl10_machine' and conf.train.name in ['meidtm', 'bltm']:
+    elif conf.data.dataset == 'stl10_machine' and conf.train.name in methods_with_new_data_structure:
         print('Loading STL10 dataset in a new unified dataset')
         train_transform, test_transform = prepare_stl10_transform()
         original_train_dataset = get_stl10_train(f'{conf.root}/../datasets', train_transform)
@@ -674,6 +864,81 @@ def get_dataset(conf) -> LitDataset:
         machine_train_dataset = AddingField(machine_train_dataset, range(len(machine_train_dataset)), 1)
         # train_dataset = DecoratedDataset(machine_train_dataset)
         train_dataset = UnifiedDataset(machine_train_dataset)
+
+        test_dataset = get_stl10_test(f'{conf.root}/../datasets', test_transform)
+        test_dataset, val_dataset, _, _ = split_train_val(test_dataset, train_prop=0.8)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'imagenet15':
+        print('Loading ImageNet15 dataset in a new unified dataset')
+        # original_train_dataset = get_imagenet15_train(f'{conf.root}/../datasets', train_transform)
+        # machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        # machine_train_dataset = ReplacingLabel(original_train_dataset, machine_labels)
+        # machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+        # machine_train_dataset = AddingField(machine_train_dataset, range(len(machine_train_dataset)), 1)
+        train_ds = ImageNet15Dataset('/scratch/tri/datasets/imagenet15_M=100.pkl', is_train=True)
+        val_ds = ImageNet15Dataset('/scratch/tri/datasets/imagenet15_M=100.pkl', is_train=False)
+        test_ds = ImageNet15Dataset('/scratch/tri/datasets/imagenet15_M=100.pkl', is_train=False)
+
+        generator = torch.Generator().manual_seed(42)
+        train_ids, val_ids, test_ids = random_split(range(len(train_ds)), [0.9, 0.05, 0.05], generator=generator)
+        train_dataset = Subset(train_ds, train_ids)
+        val_dataset = Subset(val_ds, val_ids)
+        test_dataset = Subset(test_ds, test_ids)
+
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'imagenet15_ver2':
+        print('Loading ImageNet15 dataset in a new unified dataset')
+        train_ds = ImageNet15DatasetVer2(conf.data.filename, is_train=True)
+        val_ds = ImageNet15DatasetVer2(conf.data.filename, is_train=False)
+        test_ds = ImageNet15DatasetVer2(conf.data.filename, is_train=False)
+
+        generator = torch.Generator().manual_seed(42)
+        train_ids, val_ids, test_ids = random_split(range(len(train_ds)), [0.9, 0.05, 0.05], generator=generator)
+        train_dataset = Subset(train_ds, train_ids)
+        val_dataset = Subset(val_ds, val_ids)
+        test_dataset = Subset(test_ds, test_ids)
+
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'imagenet15_feature':
+        print('Loading ImageNet15 with extracted feature dataset in a new unified dataset')
+        train_ds = ImageNet15FeatureDataset(conf.data.filename, is_train=True)
+        val_ds = ImageNet15FeatureDataset(conf.data.testfile, is_train=False)
+        test_ds = ImageNet15FeatureDataset(conf.data.testfile, is_train=False)
+
+        generator = torch.Generator().manual_seed(42)
+        val_ids, test_ids = random_split(range(len(val_ds)), [0.1, 0.9], generator=generator)
+        train_dataset = train_ds
+        val_dataset = Subset(val_ds, val_ids)
+        test_dataset = Subset(test_ds, test_ids)
+
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'imagenet15_feature_true_label':
+        print('DEBUGGGG \n\n REMOVE IT')
+        train_ds = ImageNet15FeatureDatasetTrueLabel(conf.data.filename, is_train=True)
+        val_ds = ImageNet15FeatureDataset(conf.data.testfile, is_train=False)
+        test_ds = ImageNet15FeatureDataset(conf.data.testfile, is_train=False)
+
+        generator = torch.Generator().manual_seed(42)
+        val_ids, test_ids = random_split(range(len(val_ds)), [0.1, 0.9], generator=generator)
+        train_dataset = train_ds
+        val_dataset = Subset(val_ds, val_ids)
+        test_dataset = Subset(test_ds, test_ids)
+
+        train_dataset = UnifiedDataset(train_dataset)
+        data_module = LitDataset(train_dataset, val_dataset, test_dataset, conf.train.batch_size)
+    elif conf.data.dataset == 'stl10_machine_single_annotator' and\
+            conf.train.name in methods_with_new_data_structure:
+        print('Loading STL10 dataset in a new unified dataset')
+        train_transform, test_transform = prepare_stl10_transform()
+        original_train_dataset = get_stl10_train(f'{conf.root}/../datasets', train_transform)
+        machine_labels = load_machine_labels(f'{conf.root}/data/{conf.data.filename}')
+        machine_train_dataset = AddingField(original_train_dataset, machine_labels, 0)
+        machine_train_dataset = AddingField(machine_train_dataset, range(len(machine_train_dataset)), 1)
+        train_dataset = UnifiedDataset(machine_train_dataset)
+        train_dataset = FlattenAnnotationsDataset(train_dataset)
 
         test_dataset = get_stl10_test(f'{conf.root}/../datasets', test_transform)
         test_dataset, val_dataset, _, _ = split_train_val(test_dataset, train_prop=0.8)
@@ -689,4 +954,11 @@ def get_dataset(conf) -> LitDataset:
     else:
         raise Exception('typo in data name')
     return data_module
+
+
+if __name__ == "__main__":
+    # dataset = LabelMeTrainDataset('./data')
+    train_ds = ImageNet15FeatureDataset('/scratch/tri/datasets/imagenet15/clip_feature_M=100.pkl', is_train=True)
+    __import__('pdb').set_trace()
+    print()
 

@@ -1,0 +1,6 @@
+N: 4873
+M: 3
+K: 15
+dataset: imagenet15_ver2
+filename: /scratch/tri/datasets/imagenet15_M=3_ver2.pkl
+

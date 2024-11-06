@@ -87,6 +87,7 @@ class ResNet(nn.Module):
         # self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.backbone = get_backbone(conf)
         self.T_revision = nn.Linear(num_classes, num_classes, False)
+        print()
 
 
 

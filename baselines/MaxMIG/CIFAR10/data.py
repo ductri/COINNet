@@ -5,6 +5,7 @@ import numpy as np
 import torch
 import torch.utils
 from torchvision import datasets
+from tqdm import tqdm
 
 from .common import Config
 # from ours import constants
@@ -100,21 +101,56 @@ def Initial_mats():
     sum_majority_prob = torch.zeros((Config.num_classes))
     confusion_matrix = torch.zeros((Config.expert_num, Config.num_classes, Config.num_classes))
     expert_tmatrix = torch.zeros((Config.expert_num, Config.num_classes, Config.num_classes))
+    # my_confusion_matrix = torch.zeros((Config.expert_num, Config.num_classes, Config.num_classes))
+    # my_expert_tmatrix = torch.zeros((Config.expert_num, Config.num_classes, Config.num_classes))
 
-    for i, batch in enumerate(train_loader):
+    def inner_loop_original(_ep, _label):
+        for j in range(_ep.size()[0]):
+            _, _expert_class = torch.max(_ep[j], 1)
+            _linear_sum_2 = torch.sum(_ep[j], dim=0)
+            _prob_2 = _linear_sum_2 / Config.expert_num
+            for R in range(Config.expert_num):
+                expert_tmatrix[R, :, _expert_class[R]] += _prob_2.float()
+                confusion_matrix[R, _label[j], _expert_class[R]] += 1
+
+    def inner_loop_vectorization(_ep, _label):
+        for j in range(_ep.size()[0]):
+            _, _expert_class = torch.max(_ep[j], 1) # (3)
+            _linear_sum_2 = torch.sum(_ep[j], dim=0)
+            _prob_2 = _linear_sum_2 / Config.expert_num # (10)
+
+            tmp = expert_tmatrix[range(Config.expert_num), :, _expert_class] # (3, 10)
+            tmp += _prob_2[None, ...].float()
+            expert_tmatrix[range(Config.expert_num), :, _expert_class] = tmp
+
+            tmp = confusion_matrix[range(Config.expert_num), _label[j], _expert_class]
+            tmp += 1
+            confusion_matrix[range(Config.expert_num), _label[j], _expert_class] = tmp
+
+    # def inner_loop_vectorization(_ep, _label):
+    #     _, _expert_class = torch.max(_ep, 2) # (batch_size, expert_num) 
+    #     _prob2 = torch.sum(_ep, 1, keepdim=True)/ Config.expert_num # (batch_size, num_classes)
+    #     batch_size = _ep.shape[0]
+    #
+    #     my_expert_tmatrix[np.tile(np.arange(Config.expert_num), [batch_size, 1]), :, _expert_class] += _prob2.float()
+    #     # my_confusion_matrix[range(Config.expert_num), _label, _expert_class] += 1
+    #     my_confusion_matrix[np.arange(Config.expert_num)[None, ...], _label[...,None], _expert_class] += 1
+
+
+    for i, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
+        if i>10:
+            print('Initilization only using first 10 batch, you are damn so slow')
+            break
         (img, ep, label) = adapt_train_batch(batch, Config.num_classes)
         linear_sum = torch.sum(ep, dim=1)
         label = label.long()
         prob = linear_sum / Config.expert_num
         sum_majority_prob += torch.sum(prob, dim=0).float()
 
-        for j in range(ep.size()[0]):
-            _, expert_class = torch.max(ep[j], 1)
-            linear_sum_2 = torch.sum(ep[j], dim=0)
-            prob_2 = linear_sum_2 / Config.expert_num
-            for R in range(Config.expert_num):
-                expert_tmatrix[R, :, expert_class[R]] += prob_2.float()
-                confusion_matrix[R, label[j], expert_class[R]] += 1
+        # inner_loop_original(ep, label)
+        inner_loop_vectorization(ep, label)
+        # print(f'---- DEBUG: err1={((expert_tmatrix - my_expert_tmatrix)**2).sum():e}')
+        # print(f'---- DEBUG: err2={((confusion_matrix - my_confusion_matrix)**2).sum():e}')
 
     for R in range(Config.expert_num):
         linear_sum = torch.sum(confusion_matrix[R, :, :], dim=1)
@@ -156,5 +192,10 @@ test_loader = data_module.test_dataloader()
 # train_dataset_agg = Im_EP(as_expertise=Config.as_expertise, root_path=Config.data_root, train=True)
 # train_dataset_agg.label_initial()
 # data_loader_agg = torch.utils.data.DataLoader(dataset=train_dataset_agg, batch_size=Config.batch_size, shuffle=False)
+print('Running initilization ... taking so damn long time')
+# print('DEBUGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG')
 confusion_matrix, expert_tmatrix = Initial_mats()
+# expert_tmatrix = torch.zeros((Config.expert_num, Config.num_classes, Config.num_classes))
+
+print('Done initilization.')
 

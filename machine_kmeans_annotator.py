@@ -19,6 +19,7 @@ from sklearn.pipeline import Pipeline
 from helpers.model import  BasicBlock
 import constants
 import unified_metrics
+import my_dataset
 
 
 def train_cifar10():
@@ -77,8 +78,40 @@ def train_fmnist():
         print(f'Saved data to {path_to_file} ')
         print()
 
+def train_stl10():
+    project_name = 'shahana_outlier'
+    tags = ['machine_annotators_training', 'kmeans']
+    with wandb.init(entity='narutox', project=project_name, tags=tags) as run:
+        means = [1.7776489e-07, -3.6621095e-08, -9.346008e-09]
+        stds = [1.0, 1.0, 1.0]
+        stats = (means, stds)
+        transform = v2.Compose([
+            v2.ToTensor(),
+            # v2.Normalize(*stats,inplace=True)
+        ])
+
+        train_set = my_dataset.get_stl10_train('./../datasets/', transform)
+        dataloader = DataLoader(train_set, batch_size=len(train_set), shuffle=False)
+
+        X, y = next(iter(dataloader))
+        X = X.cpu().numpy()
+        y = y.cpu().numpy()
+        X = X.reshape(X.shape[0], -1)
+
+        kmeans = KMeans(n_clusters=10, max_iter=200)
+        predictor = kmeans
+        predict = predictor.fit(X).predict(X)
+
+        pred = unified_metrics.match_it_label(y, predict, 10)
+
+        path_to_file = './data/stl10_kmeans_annotator.pkl'
+        with open(path_to_file, 'wb') as o_f:
+            pkl.dump(pred, o_f)
+        print(f'Acc: {np.mean((pred == y)*1.0)}')
+        print(f'Saved data to {path_to_file} ')
+        print()
 
 
 if __name__ == "__main__":
-    train_fmnist()
+    train_stl10()
 

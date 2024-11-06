@@ -1,0 +1,9 @@
+N: 47500
+M: 3
+K: 10
+dataset: cifar10_single_label
+total_noise_rate: 0.2
+percent_instance_noise: 0.3
+instance_indep_conf_type: symmetric
+missing_rate: 0.1
+

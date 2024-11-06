@@ -1,3 +1,4 @@
+from collections import Counter
 import numpy as np
 import torch
 # from scipy.stats import mode
@@ -38,7 +39,23 @@ class TrainingDataFlattenWrapper(torch.utils.data.Dataset):
 
 
 def convert_train_batch_majority(batch):
-    x, annotations, i, y = batch
-    annotation = torch.mode(annotations, dim=1, keepdims=False)[0]
+    x, annotations, _ = batch
+    rng = np.random.default_rng()
+    if annotations.ndim > 1:
+        # annotations = rng.permuted(annotations.numpy(), axis=1)
+        # annotation = torch.mode(torch.from_numpy(annotations), dim=1, keepdims=False)[0]
+
+
+        annotations_majority_vote = []
+        for row in annotations:
+            row = row.cpu().numpy()
+            np.random.shuffle(row)
+            counter = Counter(row)
+            if -1 in counter:
+                counter[-1] = 0
+            annotations_majority_vote.append(counter.most_common(1)[0][0])
+        annotation = torch.from_numpy(np.array(annotations_majority_vote))
+    else:
+        annotation = annotations
     return x, annotation
 

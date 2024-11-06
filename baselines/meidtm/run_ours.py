@@ -18,6 +18,7 @@ from collections import Counter
 import wandb
 
 from utils import make_dir
+from cluster_acc_metric import MyClusterAccuracy
 
 
 def super_main(conf, unique_name):
@@ -49,7 +50,7 @@ def super_main(conf, unique_name):
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     device = torch.device('cuda:'+ str(args.device))
-
+    val_cluster_acc_metric = MyClusterAccuracy(args.num_classes)
 
     loss_func_ce = F.nll_loss
 
@@ -138,7 +139,7 @@ def super_main(conf, unique_name):
             optimizer.zero_grad()
 
             clean = model(batch_x)
-            ce_loss = loss_func_ce(clean.log(), batch_y.long())
+            ce_loss = loss_func_ce(clean.log(), batch_y.long(), ignore_index=-1)
             res = torch.mean(torch.sum(clean.log() * clean, dim=1))
             data_num = data_num + len(clean)
 
@@ -177,7 +178,7 @@ def super_main(conf, unique_name):
 
         manifold_loss = torch.mean(s_ij.detach() * ij_dist)
 
-        ce_loss = loss_func_ce(out.log(), batch_y)
+        ce_loss = loss_func_ce(out.log(), batch_y, ignore_index=-1)
 
         return ce_loss, manifold_loss
 
@@ -218,6 +219,7 @@ def super_main(conf, unique_name):
 
 
     def test(test_loader,model):
+        test_cluster_acc_metric = MyClusterAccuracy(args.num_classes)
         eval_loss = 0.
         eval_acc = 0.
         data_num = 0
@@ -230,16 +232,17 @@ def super_main(conf, unique_name):
                 clean = model(batch_x)
 
                 data_num = data_num + len(clean)
-                loss = loss_func_ce(clean.log(), batch_y.long())
+                loss = loss_func_ce(clean.log(), batch_y.long(), ignore_index=-1)
                 eval_loss += loss.item()*len(clean)
                 pred = torch.max(clean, 1)[1]
                 eval_correct = (pred == batch_y).sum()
                 eval_acc += eval_correct.item()
+                test_cluster_acc_metric.update(preds=pred, target=batch_y)
 
             print('Test Loss: {:.6f}, Acc: {:.9f}'.format(eval_loss / data_num,
                 eval_acc / data_num))
 
-        return eval_acc / data_num
+        return eval_acc / data_num, test_cluster_acc_metric.compute()
 
 
     def main():
@@ -346,14 +349,14 @@ def super_main(conf, unique_name):
             print('manifold dataset : ', args.dataset)
             train_our(epoch,train_distilled_loader,model,optimizer,scheduler,trans,optimizer_trans,scheduler_trans)
 
-            eval_acc = test(test_loader,model)
-            wandb.log({'eval_acc': eval_acc})
+            eval_acc, test_cluster_acc = test(test_loader,model)
+            wandb.log({'eval_acc': eval_acc, 'test_cluster_acc': test_cluster_acc})
 
-            if eval_acc >= best_acc:
-                best_acc = eval_acc
+            if test_cluster_acc >= best_acc:
+                best_acc = test_cluster_acc
 
         print("Best test accuracy acc: %f" % best_acc)
-        wandb.summary['best_test_acc'] = best_acc
+        wandb.summary['best_test_cluster_acc'] = best_acc
 
     main()
 

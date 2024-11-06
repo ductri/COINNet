@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from my_lit_model import FCNNDropout
 
 class Linear(nn.Module):
     def __init__(self, in_features, out_features):
@@ -71,6 +72,36 @@ class Bottleneck(nn.Module):
         out += self.shortcut(x)
         out = F.relu(out)
         return out
+
+class ModifiedResNetForLableMe(nn.Module):
+    def __init__(self):
+        super(ModifiedResNetForLableMe, self).__init__()
+        self.num_classes = 8
+        self.backbone = FCNNDropout(8192, self.num_classes*self.num_classes)
+
+    def forward(self, x):
+        _, out = self.backbone(x)
+        out_1 = out.view(out.size(0), -1)
+        out_2 = out_1.reshape(out_1.size(0),self.num_classes,self.num_classes)
+        out_2 = F.softmax(out_2, dim=2)
+
+        return out_2.float()
+
+
+class ModifiedResNetForImageNet15Feature(nn.Module):
+    def __init__(self):
+        super(ModifiedResNetForImageNet15Feature, self).__init__()
+        self.num_classes = 15
+        self.backbone = FCNNDropout(512, self.num_classes*self.num_classes)
+
+    def forward(self, x):
+        _, out = self.backbone(x)
+        out_1 = out.view(out.size(0), -1)
+        out_2 = out_1.reshape(out_1.size(0),self.num_classes,self.num_classes)
+        out_2 = F.softmax(out_2, dim=2)
+
+        return out_2.float()
+
 
 class ResNet(nn.Module):
     def __init__(self, block, num_blocks, num_classes):

@@ -93,7 +93,26 @@ def data_to_mem(loader):
     data = list(zip(*data))
     X, annotations = [torch.concat(data[i]) for i in range(2)]
 
-    annotations_majority_vote = torch.mode(annotations, keepdims=False, dim=1)[0]
+    if annotations.ndim > 1:
+        # annotations_majority_vote = torch.mode(annotations, keepdims=False, dim=1)[0]
+
+        # rng = np.random.default_rng()
+        # annotations = rng.permuted(annotations.numpy(), axis=1)
+        # annotations_majority_vote = torch.mode(torch.from_numpy(annotations), dim=1, keepdims=False)[0]
+
+
+        annotations_majority_vote = []
+        for row in annotations:
+            row = row.cpu().numpy()
+            np.random.shuffle(row)
+            counter = Counter(row)
+            if -1 in counter:
+                counter[-1] = 0
+            annotations_majority_vote.append(counter.most_common(1)[0][0])
+        annotations_majority_vote = torch.from_numpy(np.array(annotations_majority_vote))
+
+    else:
+        annotations_majority_vote = annotations
 
     extra = list(zip(*data[2]))
     label = torch.concat(extra[1])

@@ -1,0 +1,6 @@
+N: 47500
+M: 3
+K: 10
+dataset: cifar10_machine_single_label
+filename: cifar10_machine_annotations_knn_nn_nn.pkl
+

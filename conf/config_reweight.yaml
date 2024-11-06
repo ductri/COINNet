@@ -6,5 +6,5 @@ root: '.'
 fnet_type: 'resnet34'
 tags: ['reweight']
 model_dir: out_reweight/
-with_ray: True
+with_ray: False
 

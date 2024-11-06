@@ -31,7 +31,7 @@ def train():
     mig_loss = 0
     true_loss = 0
 
-    for batch_idx, batch in enumerate(train_loader):
+    for batch_idx, batch in tqdm(enumerate(train_loader), total=len(train_loader)):
         left_data, right_data, true_label = adapt_train_batch(batch, global_conf.conf.data.K)
         if left_data.size()[0] != Config.batch_size :
             continue
@@ -40,49 +40,11 @@ def train():
         true_label = Variable(true_label).long().cuda()
         images = Variable(left_data).float().cuda()
 
-        # # Majority Vote
-        # linear_sum = torch.sum(right_data,dim=1)
-        # _, majority = torch.max(linear_sum,1)
-        # majority = Variable(majority).long().cuda()
-        # left_optimizer_majority.zero_grad()
-        # outputs = left_model_majority(images).float()
-        # outputs = torch.log(outputs).float()
-        # loss = nn.functional.nll_loss(outputs, majority)
-        # loss.backward()
-        # left_optimizer_majority.step()
-        # majority_loss += loss
-        #
-        # # Crowds Layer
-        # net_cl_optimizer.zero_grad()
-        # out, hold = net_cl(images)
-        # loss = 0
-        # for i in range(Config.expert_num):
-        #     _, label = torch.max(ep[:, i, :], dim=1)
-        #     label = label.long().cuda()
-        #     loss += F.nll_loss(out[i], label)
-        # loss = (1.0 / Config.expert_num) * loss
-        # loss.backward()
-        # net_cl_optimizer.step()
-        # cl_loss += loss
-        #
-        # # Docter Net
-        # net_dn_optimizer.zero_grad()
-        # out = net_dn(images)
-        # loss = 0
-        # for i in range(Config.expert_num):
-        #     _, label = torch.max(ep[:, i, :], dim=1)
-        #     label = label.long().cuda()
-        #     loss += F.nll_loss(out[i], label)
-        # loss = (1.0 / Config.expert_num) * loss
-        # loss.backward()
-        # net_dn_optimizer.step()
-        # dn_loss += loss
-
         # MAX-MIG
         right_optimizer_mig.zero_grad()
         left_optimizer_mig.zero_grad()
-        left_outputs = left_model_mig(images).cpu().float()
-        right_outputs = right_model_mig(ep, left_outputs, prior=priori_fixed, type=2).cpu().float()
+        left_outputs = left_model_mig(images).float()
+        right_outputs = right_model_mig(ep, left_outputs, prior=priori_fixed, type=2)
         loss = kl_loss_function(left_outputs, right_outputs, priori_fixed)
         loss.backward()
         right_optimizer_mig.step()

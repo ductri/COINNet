@@ -55,6 +55,7 @@ def super_main(conf, unique_name):
     args.n_epoch_2 = conf.train.n_epoch_2
     args.n_epoch_3 = conf.train.n_epoch_3
     args.n_epoch_4 = conf.train.n_epoch_4
+    args.lr = conf.train.lr
 
     torch.cuda.set_device(args.gpu)
     # Seed
@@ -130,10 +131,15 @@ def super_main(conf, unique_name):
     #                 transforms.Normalize((0.1307, ),(0.3081, )),]),
     #             target_transform=tools.transform_target)
     if args.dataset=='cifar10':
-        args.num_classes = 10
+        args.num_classes = conf.data.K
         args.feature_size = 3 * 32 * 32
         # args.n_epoch_1, args.n_epoch_2, args.n_epoch_3 = 5, 50, 50
-        args.dim = 512
+        if conf.data.dataset[:7] == 'labelme':
+            args.dim = 128
+        elif conf.data.dataset in ['imagenet15_feature', 'imagenet15_feature_true_label']:
+            args.dim = 128
+        else:
+            args.dim = 512
         args.basis = 20
         args.iteration_nmf = 10
         data_module = get_dataset(conf)
@@ -670,7 +676,11 @@ def super_main(conf, unique_name):
         # if args.dataset == 'svhn':
         #     clf1 = resnet.ResNet34(10)
 
-        clf1 = resnet.ResNet34(10, conf)
+        if conf.data.dataset[:5] == 'stl10':
+            print('Getting a special ResNet18!')
+            clf1 = resnet.ResNet18(10)
+        else:
+            clf1 = resnet.ResNet34(conf.data.K, conf)
         clf1.cuda()
         optimizer = torch.optim.SGD(clf1.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
@@ -693,7 +703,7 @@ def super_main(conf, unique_name):
         for epoch in range(1, args.n_epoch_1):
             # train models
             clf1.train()
-            train_acc = train(clf1, train_loader, epoch, optimizer, nn.CrossEntropyLoss())
+            train_acc = train(clf1, train_loader, epoch, optimizer, nn.CrossEntropyLoss(ignore_index=-1))
             # validation
             val_acc = evaluate(val_loader, clf1)
             # evaluate models

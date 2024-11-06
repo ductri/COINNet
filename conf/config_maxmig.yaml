@@ -1,10 +1,10 @@
 defaults:
-  - data: cifar10_machine_tmp
+  - data: cifar10_syn_missing
   - train: maxmig
 
 root: '.'
 fnet_type: 'resnet34'
 tags: ['maxmig']
 model_dir: maxmig_models/
-with_ray: True
+with_ray: False
 

@@ -6,4 +6,4 @@ n_epoch_2: 50
 n_epoch_3: 50
 n_epoch_4: 1000
 num_workers: 3
-
+lr: 1e-2

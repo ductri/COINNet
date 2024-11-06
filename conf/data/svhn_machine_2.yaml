@@ -1,0 +1,6 @@
+N: 604388
+M: 3
+K: 10
+dataset: svhn_machine
+filename: svhn_2.pkl
+

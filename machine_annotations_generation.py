@@ -1,10 +1,12 @@
+import os
+
 import numpy as np
 import pickle as pkl
 import torch
 import torch.nn.functional as F
-from torchvision.datasets import CIFAR10, CIFAR100, FashionMNIST, STL10
+from torchvision.datasets import CIFAR10, CIFAR100, FashionMNIST, STL10, SVHN
 from torchvision.transforms import v2
-from torch.utils.data import random_split, DataLoader, Dataset, Subset
+from torch.utils.data import random_split, DataLoader, Dataset, Subset,ConcatDataset
 from torch import nn, optim
 from torch.nn import CrossEntropyLoss
 from torchmetrics import Accuracy
@@ -19,9 +21,60 @@ from helpers.model import  BasicBlock
 import constants
 # from machine_annotators_training import LitMyModule
 # from machine_annotators_training_fmnist import LitMyModule
-from machine_annotators_training_stl10 import LitMyModule
+# from machine_annotators_training_stl10 import LitMyModule
+from machine_annotators_training_svhn import LitMyModule, svhn
 from inspect_machine_annotations import inspect
 
+
+def get_svhn_data(data_root='./../datasets/'):
+    data_root = os.path.expanduser(os.path.join(data_root, 'svhn-data'))
+
+    train_dataset = SVHN(
+            root=data_root, split='train', download=True,
+            transform=v2.Compose([
+                v2.ToTensor(),
+                v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ]))
+    train_dataset2 = SVHN(
+            root=data_root, split='extra', download=True,
+            transform=v2.Compose([
+                v2.ToTensor(),
+                v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ]))
+    train_dataset = ConcatDataset([train_dataset, train_dataset2])
+
+    test_dataset = SVHN(
+            root=data_root, split='test', download=True,
+            transform=v2.Compose([
+                v2.ToTensor(),
+                v2.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ]))
+    return train_dataset, test_dataset
+
+class LitSVHNDataset(L.LightningDataModule):
+    def __init__(self, batch_size: int, root='/scratch/tri/datasets'):
+        super().__init__()
+        self.batch_size = batch_size
+
+        train_dataset, test_dataset = get_svhn_data()
+        self.test_set = train_dataset
+
+    def prepare(self):
+        pass
+
+    def setup(self, stage:str=''):
+        if stage == 'fit':
+            print(f'train size: {len(self.train_set)}, val size: {len(self.val_set)}')
+        elif stage == 'test':
+            print(f'test size: {len(self.test_set)}')
+        print('Done SETTING data module for SVHN!')
+
+    def predict_dataloader(self):
+        return DataLoader(self.test_set, batch_size=self.batch_size, num_workers=3, shuffle=False)
+
+    def teardown(self, stage: str):
+        # Used to clean-up when the run is finished
+        ...
 
 class LitCIFAR100(L.LightningDataModule):
     def __init__(self, batch_size: int, root='/scratch/tri/datasets'):
@@ -144,7 +197,7 @@ class LitSTL10(L.LightningDataModule):
         return DataLoader(self.train_set, batch_size=self.batch_size, num_workers=4, shuffle=False)
 
 
-@hydra.main(version_base=None, config_path=f"conf", config_name="config_machine_annotations")
+@hydra.main(version_base=None, config_path=f"conf", config_name="config_machine_annotations_svhn")
 def hydra_main(conf):
     project_name = 'shahana_outlier'
     with wandb.init(entity='narutox', project=project_name, tags=['machine_annotations_gen'], config=OmegaConf.to_container(conf, resolve=True)) as run:
@@ -156,12 +209,14 @@ def hydra_main(conf):
             data_module = LitFashionMNIST(batch_size=512, root=conf.root)
         elif conf.base_dataset == 'stl10':
             data_module = LitSTL10(batch_size=512, root=conf.root)
+        elif conf.base_dataset == 'svhn':
+            data_module = LitSVHNDataset(batch_size=512, root=conf.root)
         else:
             raise Exception('bla bla')
         machine_labels = []
         for codename,epoch in zip(conf.codenames, conf.epochs):
             checkpoint = f'{conf.root}/lightning_saved_models/machine_annotator/{codename}/{epoch}'
-            my_module = LitMyModule.load_from_checkpoint(checkpoint, lr=1e-2, num_epochs=0, batch_size=512, K=conf.num_classes)
+            my_module = LitMyModule.load_from_checkpoint(checkpoint, lr=1e-2, num_epochs=0, batch_size=512, skipping_digits=[], K=conf.num_classes)
             trainer = L.Trainer(devices=1)
             tmp = trainer.predict(model=my_module, datamodule=data_module)
             machine_labels_m, true_labels = zip(*tmp)

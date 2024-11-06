@@ -1,8 +1,9 @@
 base_dataset: stl10
-codenames: ["unique-glitter-1284", "unique-glitter-1284", "unique-glitter-1284"]
-epochs: ["epoch=34-step=350.ckpt","epoch=39-step=400.ckpt",  "epoch=29-step=300.ckpt"]
-tradition_method_filenames: []
-filename: stl10_3.pkl
+codenames: ["unique-glitter-1284", "fancy-water-1558"]
+# epochs: ["epoch=34-step=350.ckpt","epoch=39-step=400.ckpt",  "epoch=29-step=300.ckpt"]
+epochs: ["epoch=34-step=350.ckpt", "epoch=34-step=210.ckpt"]
+tradition_method_filenames: ['stl10_knn_annotator.pkl',]
+filename: stl10_6.pkl
 root: "."
 num_classes: 10
 

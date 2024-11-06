@@ -1,5 +1,6 @@
 batch_size: 512
-num_epochs: 200
-num_estimate_epochs: 50
+num_epochs: 100
+num_estimate_epochs: 25
 name: reweight
-
+num_workers: 3
+lr: 1e-2

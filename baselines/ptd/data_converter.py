@@ -11,7 +11,15 @@ class TrainDatasetAdapter(Dataset):
         return len(self.ds)
 
     def __getitem__(self, idx):
-        x, annotations, ind, indep_mark = self.ds[idx]
-        annotation = mode(annotations, keepdims=True)[0]
+        x, annotations, _ = self.ds[idx]
+        if torch.is_tensor(annotations):
+            annotations = annotations.cpu().numpy()
+        if len(annotations) > 1:
+            mask = annotations==-1
+            annotations = annotations[~mask]
+            np.random.shuffle(annotations)
+            annotation = mode(annotations, keepdims=True)[0]
+        else:
+            annotation = annotations
         return x, torch.from_numpy(annotation.astype(np.int32)).long().squeeze()
 

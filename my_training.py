@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import torch
+torch.set_float32_matmul_precision('medium')
 import torch.nn.functional as F
 from torchvision.transforms import ToTensor
 from torchvision.datasets import ImageFolder
@@ -53,10 +54,10 @@ def my_main(conf, unique_name):
     trainer.test(model=model, datamodule=data_module)
 
     if 'instance_indep_conf_type' in conf.data:
-        tmp = DataLoader(DatasetAdapter(data_module.data_train, [1, 2, 0, 7]),
-                batch_size=len(data_module.data_train), shuffle=False)
-        train_set = next(iter(tmp))
-        indep_mark = train_set[3]
+        tmp = DataLoader(data_module.train_dataset, batch_size=len(data_module.train_dataset), shuffle=False)
+        tmp = next(iter(tmp))
+        tmp = tmp[2]
+        indep_mark = tmp[1]
         E = model.model.get_e()
         err = (E**2).sum((1, 2)).detach().cpu()
         threshold, _ = torch.topk(err, int(conf.data.percent_instance_noise*err.shape[0]), sorted=True)

@@ -1,0 +1,8 @@
+N: 4873
+M: 100
+K: 15
+dataset: imagenet15_feature_true_label
+filename: /scratch/tri/datasets/imagenet15/clip_feature_M=100.pkl
+testfile: /scratch/tri/datasets/imagenet15/clip_feature_M=100_test.pkl
+
+

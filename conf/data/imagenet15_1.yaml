@@ -1,0 +1,6 @@
+N: 4000
+M: 100
+K: 15
+dataset: imagenet15
+filename: /scratch/tri/datasets/imagenet15_M=100.pkl
+

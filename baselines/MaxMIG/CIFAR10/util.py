@@ -6,8 +6,8 @@ import numpy as np
 
 from .common import Config
 
-I = torch.FloatTensor(np.eye(Config.batch_size),)
-E = torch.FloatTensor(np.ones((Config.batch_size, Config.batch_size)))
+I = torch.FloatTensor(np.eye(Config.batch_size),).cuda()
+E = torch.FloatTensor(np.ones((Config.batch_size, Config.batch_size))).cuda()
 normalize_1 = Config.batch_size
 normalize_2 = Config.batch_size * Config.batch_size - Config.batch_size
 
@@ -20,7 +20,7 @@ def kl_loss_function(output1, output2, p):
     """
     new_output = output1 / p
     m = (new_output @ output2.transpose(1,0))
-    noise = torch.rand(1)*0.0001
+    noise = torch.rand(1).cuda()*0.0001
     m1 = torch.log(m*I+ I*noise + E - I)
     m2 = m*(E-I)
     return -(sum(sum(m1)) + Config.batch_size)/normalize_1 + sum(sum(m2)) / normalize_2

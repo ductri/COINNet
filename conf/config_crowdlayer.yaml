@@ -5,4 +5,4 @@ defaults:
 root: '.'
 fnet_type: 'resnet34'
 tags: ['crowdlayer']
-with_ray: True
+with_ray: False

@@ -19,7 +19,7 @@ class TrainAdaptCIFAR10(Dataset):
         return len(self.ds)
 
     def __getitem__(self, ind):
-        data, label, _, _ = self.ds[ind]
+        data, label, _ = self.ds[ind]
         return data, label
 
 

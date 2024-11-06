@@ -1,0 +1,5 @@
+batch_size: 512
+num_epochs: 120
+name: gce
+num_workers: 3
+lr: 1e-2

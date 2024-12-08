@@ -22,11 +22,9 @@ from torchvision.transforms import v2
 from torch.utils.data import random_split, DataLoader, Dataset, Subset, ConcatDataset
 from omegaconf import DictConfig
 
-# from helpers.model import CrowdNetwork2
 from helpers.data_load import cifar10_dataset, cifar10_test_dataset
 from helpers.data_load_new import fmnist_dataset, fmnist_test_dataset
 from helpers.transformer import transform_train, transform_test, transform_target
-# from helpers.functions import generate_confusion_matrices2
 
 from cluster_acc_metric import MyClusterAccuracy
 import constants
@@ -443,7 +441,6 @@ class LitFmnistShahanaModule(L.LightningDataModule):
     def __init__(self, config: DictConfig):
         super().__init__()
         self.config = config
-
 
     def setup(self, stage:str=''):
         args = shahana_default_setting(self.config)

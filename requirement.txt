@@ -1,4 +1,5 @@
 lightning
+torchvision
 torchmetrics
 wandb
 tqdm

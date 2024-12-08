@@ -37,6 +37,7 @@ def trainer_traceregeecs(args,alg_options,logger):
                 best_model = out['final_model_f_dict']
                 best_val_acc=out['best_val_acc']
                 best_lam, best_lr = lamda_list[l], learning_rate_list[j]
+                # torch.save(best_model.state_dict(), 'model_weights.pth')
 
     # Perform testing
     logger.info('Testing with lambda='+str(best_lam)+' learning_rate = '+str(best_lr))
@@ -271,6 +272,7 @@ def test(args,alg_options,logger, best_model):
     #Start testing
     n_test_acc=0
     len_test_data=len(test_loader.dataset)
+    all_preds = []
     with torch.no_grad():
         model.eval()
         test_cluster_acc_metric = MyClusterAccuracy(args.K)

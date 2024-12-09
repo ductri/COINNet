@@ -7,11 +7,13 @@ from sklearn.metrics import confusion_matrix
 from helpers.functions import *
 from pathlib import Path
 from numpy import genfromtxt
-#def mnist_dataset(train=True, transform=None, target_transform=None, split_per=0.9, random_seed=1, num_class=10):
+import torchvision
 from numpy.matlib import repmat
 from numpy.random import default_rng
 from scipy import stats
 from sklearn.model_selection import train_test_split
+from torchvision.transforms import v2
+
 
 class cifar10_dataset(Data.Dataset):
     def __init__(self, train=True, transform=None, target_transform=None, split_per=0.9 ,args=None,logger=None):
@@ -21,10 +23,14 @@ class cifar10_dataset(Data.Dataset):
 
         original_images = np.load('data/cifar10/train_images.npy')
         original_labels = np.load('data/cifar10/train_labels.npy')
+        # trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=v2.ToTensor())
+        # original_images, original_labels = zip(*trainset)
+        # original_images = torch.concat(original_images).numpy()
+        # original_labels = torch.Tensor(original_labels).int().numpy()
+        # __import__('pdb').set_trace()
         num_class=10
 
 
-        print(original_images.shape)
         logger.info('Splitting train and validation data')
         self.train_data, self.val_data, self.train_labels, self.val_labels,train_set_index = helpers.tools.dataset_split(original_images,original_labels, split_per, args.seed, args.K)
 

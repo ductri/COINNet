@@ -954,7 +954,6 @@ def get_dataset(conf) -> LitDataset:
 
 
 if __name__ == "__main__":
-    # dataset = LabelMeTrainDataset('./data')
     train_ds = ImageNet15FeatureDataset('/scratch/tri/datasets/imagenet15/clip_feature_M=100.pkl', is_train=True)
     __import__('pdb').set_trace()
     print()

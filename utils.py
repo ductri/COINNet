@@ -101,7 +101,7 @@ def create_wandb_wrapper(main_func):
     """
     main_func(conf, unique_name)
     """
-    project_name = 'shahana_outlier'
+    project_name = 'COINNet'
     def wrapper(conf):
         with wandb.init(entity='narutox', project=project_name, tags=conf.tags, config=OmegaConf.to_container(conf, resolve=True)) as run:
             main_func(conf, run.name)

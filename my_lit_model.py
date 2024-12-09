@@ -206,7 +206,7 @@ class LitMyModuleManual(L.LightningModule):
         lr_scheduler.step()
 
         pred = f_x.argmax(-1)
-        log_data = {'ce_loss': cross_entropy_loss, 'logdet': logdet, 'sparse_loss': e, 'loss': loss, 'acc': ((pred==true_label)*1.0).mean().item()}
+        log_data = {'train/ce_loss': cross_entropy_loss, 'train/logdet': logdet, 'train/sparse_loss': e, 'train/loss': loss, }
         if 'instance_indep_conf_type' in self.conf.data:
             indep_mark = batch[2][1]
             threshold, _ = torch.topk(err, int(self.conf.data.percent_instance_noise*err.shape[0]), sorted=True)
@@ -214,7 +214,7 @@ class LitMyModuleManual(L.LightningModule):
             outlier_pred = (err < threshold)*1.0 # 0 means outliers
             outlier_pred_acc = ((outlier_pred == indep_mark)*1.).mean()
             outlier_pred_acc2 = (~outlier_pred[~indep_mark.bool()].bool()).float().mean()
-            log_data.update({'outlier_pred_acc': outlier_pred_acc, 'outlier_pred_acc2': outlier_pred_acc2})
+            log_data.update({'train/outlier_pred_acc': outlier_pred_acc, 'train/outlier_pred_acc2': outlier_pred_acc2})
         self.log_dict(log_data, on_epoch=True, on_step=False)
 
         return loss
@@ -226,8 +226,8 @@ class LitMyModuleManual(L.LightningModule):
         pred = torch.argmax(pred, 1)
         self.val_cluster_acc_metric.update(preds=pred, target=y)
         self.val_accuracy_metric.update(preds=pred, target=y)
-        self.log("valid/cluster_acc", self.val_cluster_acc_metric, on_step=False, on_epoch=True)
-        self.log("valid/acc", self.val_accuracy_metric, on_step=False, on_epoch=True)
+        self.log("val/cluster_acc", self.val_cluster_acc_metric, on_step=False, on_epoch=True)
+        self.log("val/acc", self.val_accuracy_metric, on_step=False, on_epoch=True)
 
     # def on_val_epoch_end(self):
     #     # log epoch metric

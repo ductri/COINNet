@@ -1,4 +1,4 @@
-![alt text](https://github.com/ductri/COINNet/blob/main/public/example.png)
+![alt text](https://github.com/ductri/COINNet/blob/main/public/example1.png)
 
 This is the official implementation for the work _Noisy Label Learning with Instance-Dependent Outliers: Identifiability via Crowd Wisdom_, which was accepted as Splotlight in NeurIPS 2024.
 

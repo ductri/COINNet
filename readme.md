@@ -1,6 +1,8 @@
 ![alt text](https://github.com/ductri/COINNet/blob/main/public/example1.png)
 
-This is the official implementation for the work _Noisy Label Learning with Instance-Dependent Outliers: Identifiability via Crowd Wisdom_, which was accepted as Splotlight in NeurIPS 2024.
+This is the official implementation for the work 
+_Nguyen, Tri, Shahana Ibrahim, and Xiao Fu. __"Noisy Label Learning with Instance-Dependent Outliers: Identifiability via Crowd Wisdom."__ The Thirty-eighth Annual Conference on Neural Information Processing Systems_
+, which was accepted as Splotlight in NeurIPS 2024.
 
 - Paper: [arXiv](https://openreview.net/pdf?id=HTLJptF7qM)
 - NeurIPS poster and slide page: [https://neurips.cc/virtual/2024/poster/95831](https://neurips.cc/virtual/2024/poster/95831)

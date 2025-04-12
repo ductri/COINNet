@@ -43,8 +43,11 @@ To overwrite any configurations, you can either modify these config files or use
     + `imagenet15/clip_feature_M=100.pkl`: a dictionary with following keys:
 
         . `feature`: a matrix of size (2514, 2048), row i-th is the feature vector extracted from CLIP for sample i-th.
+
         . `noisy_label`: a matrix of size (2514, 100), row i-th is the labels annotated by 100 annotators. Labels are indexed from 0 to 14, label -1 is reserved for missing cases.
+
         . `true_label`: a vector of size (2514), element i-th is true label for the i-th sample.
+
         . `idx_2_classname`: mapping from label index to label name, defined by the original ImageNet dataset.
 
     + `imagenet15/clip_feature_M=100_test.pkl`: similar to the `clip_feature_M=100_test.pkl`, but should be used  for testing.

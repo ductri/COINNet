@@ -38,7 +38,17 @@ To overwrite any configurations, you can either modify these config files or use
 
 - Download the machine annotations data used to produce Table 1 at: [google drive](google./sabc). You should then put them to `coinnet/data/`
 - Download the CIFAR-10N dataset at http://www.noisylabels.com/
-- Download ImageNet-15N noisy labels at:
+- For ImageNet-15N, we provide 2 pkl files, both can be loaded using `pickle`:
+
+    + `imagenet15/clip_feature_M=100.pkl`: a dictionary with following keys:
+        . `feature`: a matrix of size (2514, 2048), row i-th is the feature vector extracted from CLIP for sample i-th.
+        . `noisy_label`: a matrix of size (2514, 100), row i-th is the labels annotated by 100 annotators. Labels are indexed from 0 to 14, label -1 is reserved for missing cases.
+        . `true_label`: a vector of size (2514), element i-th is true label for the i-th sample.
+        . `idx_2_classname`: mapping from label index to label name, defined by the original ImageNet dataset.
+
+    + `imagenet15/clip_feature_M=100_test.pkl`: similar to the `clip_feature_M=100_test.pkl`, but should be used  for testing.
+    + In case you want to use your own feature extractor, please refer to `imagenet15/imagenet15_M=100.pkl`. This pickle file contains a list of 2514 items, each is a dictionary with the original ImageNet file name, true label, and noisy label. You would need to download the ImageNet dataset by yourself.
+
 
 
 # Running COINNet on CIFAR-10N:

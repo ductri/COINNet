@@ -2,7 +2,7 @@
 
 This is the official implementation for the work 
 
-_Nguyen, Tri, Shahana Ibrahim, and Xiao Fu. __"Noisy Label Learning with Instance-Dependent Outliers: Identifiability via Crowd Wisdom."__ The Thirty-eighth Annual Conference on Neural Information Processing Systems_,
+_Tri Nguyen, Shahana Ibrahim, and Xiao Fu. __"Noisy Label Learning with Instance-Dependent Outliers: Identifiability via Crowd Wisdom."__ The Thirty-eighth Annual Conference on Neural Information Processing Systems_,
 
 which was accepted as Splotlight at NeurIPS 2024.
 
